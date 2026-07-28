@@ -1,0 +1,64 @@
+{
+  "_comment": "EXAMPLE config (real data from the 'newwebinfo' repo) so you can see a fully filled-in report. Copy it to git-team-report.config.json in your repo and replace the people/findings — or run `git-team-report init` to auto-generate a blank one from your own history. Git NUMBERS are never stored here; they are pulled live on every build. This file holds only judgment: grades, code findings, prose.",
+  "meta": {
+    "sidebarTitle": "Team Quality Report",
+    "heading": "Team Git & Code Quality Report",
+    "callout": "Git numbers are pulled live by <code>git-team-report</code>; grades &amp; code findings come from the config file. Ship-blockers were verified against HEAD. To refresh: rerun <code>git-team-report build</code>."
+  },
+  "period": { "start": "2026-05-11" },
+  "authors": [
+    { "email": "y.alam@globalfinancialmedia.com",      "name": "Yasir Alam",    "short": "y.alam@",       "domain": "layout · features · shared · bff — widest surface, active cleanup", "gitGrade": "B",  "codeGrade": "B" },
+    { "email": "arslan.ahmad@globalfinancialmedia.com", "name": "Arslan Ahmad",  "short": "arslan.ahmad@", "domain": "shared-auth · market-talks · BFF auth",                          "gitGrade": "B",  "codeGrade": "C+" },
+    { "email": "m.younas@globalfinancialmedia.com",     "name": "M. Younas",     "short": "m.younas@",     "domain": "post-card · dialogs · feed · post/opinion creators",              "gitGrade": "B-", "codeGrade": "C",  "badge": { "kind": "tick", "text": "✓ own account" } },
+    { "email": "t.rauf@globalfinancialmedia.com",       "name": "Tayyab Rauf",   "short": "t.rauf@",       "domain": "MFE scaffold · shared-auth setup · research-reports · funds",      "gitGrade": "C+", "codeGrade": "A-", "highlight": true, "badge": { "kind": "up", "text": "▲ D→A-" } },
+    { "email": "n.muhammad@globalfinancialmedia.com",   "name": "Noor Muhammad", "short": "n.muhammad@",   "domain": "Bootstrap→Tailwind migration · community — team code benchmark",  "gitGrade": "C+", "codeGrade": "A",  "badge": { "kind": "warn", "text": "stalled" } },
+    { "email": "s.ahmed@globalfinancialmedia.com",      "name": "S. Ahmed",      "short": "s.ahmed@",      "domain": "loginform · bff/middleware/security",                             "gitGrade": "C",  "codeGrade": "A-", "badge": { "kind": "tick", "text": "✓ own account" } }
+  ],
+  "issueMatrix": {
+    "note": "Blame-attributed counts (editorial layer). The number is always shown — color only reinforces magnitude.",
+    "footnote": "TypeScript strict mode is on globally · <b style=\"color:var(--text)\">no ESLint configured</b> — nothing above is caught at commit time.",
+    "columns": ["Yasir", "Arslan", "M. Younas", "Tayyab", "Noor"],
+    "rows": [
+      { "label": "<code>any</code> types",      "values": ["7", "1", "5", "0", "0"] },
+      { "label": "<code>console.*</code> in UI", "values": ["0", "0", "1", "0", "0"] },
+      { "label": "Bare subscriptions",           "values": ["22", "~55", "~30", "0", "0"] },
+      { "label": "Unguarded DOM",                "values": ["14", "14", "8", "0", "0"] },
+      { "label": "TODO / FIXME",                 "values": ["2", "8", "0", "0", "0"] },
+      { "label": "Files &gt; 200 lines",         "values": ["4", "15", "2", "0", "0"] },
+      { "label": "Non-null <code>!.</code>",     "values": ["0", "8", "3", "0", "0"] }
+    ]
+  },
+  "shipBlockers": [
+    { "id": "C1",  "sev": "crit", "path": "src/bff/config.ts:25",                                        "desc": "<code>AI_API_URL</code> falls back to a dev endpoint → prod silently proxies auth tokens to dev if env var unset. Fix: <code>requireEnv()</code>.", "owner": "Yasir" },
+    { "id": "C2",  "sev": "crit", "path": "src/app/shared/post-detail-dialog/…:22-23",                   "desc": "<code>document.body.style.overflow</code> without <code>isPlatformBrowser()</code> → SSR crash.", "owner": "M. Younas" },
+    { "id": "H2",  "sev": "high", "path": "src/app/shared/services/post-interactions.service.ts:81-101", "desc": "State-mutating calls use HTTP <b>GET</b> → CSRF via <code>&lt;img src&gt;</code>. Fix: POST/DELETE.", "owner": "M. Younas" }
+  ],
+  "members": {
+    "t.rauf@globalfinancialmedia.com": {
+      "headline": "▲ Git D→C+ · Code D→A-",
+      "note": "Grep-level tallies overstated the debt; verified surviving code is clean across all 8 categories.",
+      "sections": [
+        { "h4": "Git — C+ (was D)", "items": ["Far more active; recent commits are properly conventional. Still dragged by early accidental shell-command commits → coordinate a history cleanup."] },
+        { "h4": "Code — A- (was D)", "items": [
+          "Scaffold files with the bulk of the findings were deleted; residual items fixed.",
+          "<span class=\"tick\">✅</span> dead code, non-null assertion, bare subscribe, and an unguarded util all resolved."
+        ]}
+      ]
+    }
+  },
+  "actions": [
+    { "tier": "t1", "title": "Fix before next release · ship-blockers", "items": [
+      { "text": "SSR crash — <code>document.body</code> in dialogs → <code>isPlatformBrowser()</code>", "owner": "M. Younas" },
+      { "text": "Credential leak — BFF dev-URL fallback → <code>requireEnv()</code>", "owner": "Yasir" },
+      { "text": "CSRF — state mutations via GET → POST/DELETE", "owner": "M. Younas" }
+    ]},
+    { "tier": "t2", "title": "This sprint", "items": [
+      { "text": "Subscription leaks → <code>takeUntilDestroyed()</code>", "owner": "Arslan · Younas · Yasir" },
+      { "text": "SSR-unsafe DOM → <code>isPlatformBrowser()</code>", "owner": "Arslan · Yasir" }
+    ]},
+    { "tier": "t0", "title": "One-time team setup", "items": [
+      { "text": "<b>Add ESLint</b> — nothing above is enforced at commit time", "owner": "Team" },
+      { "text": "<b>Add commit-lint hook</b> — enforce <code>type(scope): message | TICKET</code>", "owner": "Team" }
+    ]}
+  ]
+}

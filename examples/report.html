@@ -1,0 +1,298 @@
+<title>Team Git &amp; Code Quality Report — newwebinfo</title>
+<style>
+:root{
+  --bg:#FFFFFF; --surface:#F6F8FA; --surface-2:#EAEEF2; --border:#D0D7DE;
+  --text:#1F2328; --muted:#656D76; --accent:#0969DA;
+  --a:#1A7F37; --b:#0969DA; --c:#9A6700; --d:#CF222E;
+  --crit:#CF222E; --high:#BC4C00; --warn:#9A6700; --info:#0969DA; --ok:#1A7F37;
+  --heat:9,105,218; --nav-w:230px; --radius:8px;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0D1117; --surface:#161B22; --surface-2:#21262D; --border:#30363D;
+  --text:#C9D1D9; --muted:#8B949E; --accent:#58A6FF;
+  --a:#3FB950; --b:#58A6FF; --c:#D29922; --d:#F85149;
+  --crit:#FF7B72; --high:#FF9B72; --warn:#E3B341; --info:#79C0FF; --ok:#3FB950; --heat:88,166,255;
+}}
+:root[data-theme="light"]{
+  --bg:#FFFFFF; --surface:#F6F8FA; --surface-2:#EAEEF2; --border:#D0D7DE;
+  --text:#1F2328; --muted:#656D76; --accent:#0969DA;
+  --a:#1A7F37; --b:#0969DA; --c:#9A6700; --d:#CF222E;
+  --crit:#CF222E; --high:#BC4C00; --warn:#9A6700; --info:#0969DA; --ok:#1A7F37; --heat:9,105,218;
+}
+:root[data-theme="dark"]{
+  --bg:#0D1117; --surface:#161B22; --surface-2:#21262D; --border:#30363D;
+  --text:#C9D1D9; --muted:#8B949E; --accent:#58A6FF;
+  --a:#3FB950; --b:#58A6FF; --c:#D29922; --d:#F85149;
+  --crit:#FF7B72; --high:#FF9B72; --warn:#E3B341; --info:#79C0FF; --ok:#3FB950; --heat:88,166,255;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+code,.mono{font-family:var(--mono);font-size:.86em}
+.wrap{display:flex;min-height:100vh}
+.sidebar{width:var(--nav-w);flex:0 0 var(--nav-w);position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--surface);border-right:1px solid var(--border);padding:22px 16px}
+.sidebar h1{font-size:14px;margin:0 0 2px;letter-spacing:-.01em}
+.sidebar .repo{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:18px;word-break:break-all}
+.sidebar nav a{display:block;padding:6px 10px;border-radius:6px;color:var(--text);font-size:13px;margin-bottom:2px}
+.sidebar nav a:hover{background:var(--surface-2);text-decoration:none}
+.sidebar nav .navlbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 0 6px;padding-left:10px}
+main{flex:1;min-width:0;padding:32px 40px 80px;max-width:1100px}
+@media(max-width:820px){.wrap{flex-direction:column}.sidebar{width:auto;height:auto;position:static;border-right:none;border-bottom:1px solid var(--border)}.sidebar nav{display:flex;flex-wrap:wrap;gap:4px}.sidebar nav .navlbl{display:none}main{padding:24px 18px 60px}}
+.page-head{border-bottom:1px solid var(--border);padding-bottom:20px;margin-bottom:28px}
+.page-head h2{font-size:26px;margin:0 0 8px;letter-spacing:-.02em}
+.page-head .meta{color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:6px 18px}
+.page-head .meta b{color:var(--text);font-weight:600}
+.callout{margin-top:16px;padding:12px 14px;border-radius:var(--radius);background:color-mix(in srgb,var(--info) 12%,transparent);border:1px solid color-mix(in srgb,var(--info) 35%,transparent);font-size:13px}
+section{margin-bottom:44px;scroll-margin-top:20px}
+section>h3{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
+section>.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
+.divider{height:1px;background:var(--border);border:0;margin:0 0 44px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.mcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:12px}
+.mcard .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.mcard .name{font-weight:600;font-size:15px}
+.mcard .email{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.grades{display:flex;gap:6px;flex-shrink:0}
+.pill{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap;border:1px solid transparent;letter-spacing:.02em}
+.pill .k{font-weight:500;opacity:.75;margin-right:3px}
+.g-a{color:var(--a);background:color-mix(in srgb,var(--a) 14%,transparent);border-color:color-mix(in srgb,var(--a) 40%,transparent)}
+.g-b{color:var(--b);background:color-mix(in srgb,var(--b) 14%,transparent);border-color:color-mix(in srgb,var(--b) 40%,transparent)}
+.g-c{color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);border-color:color-mix(in srgb,var(--c) 40%,transparent)}
+.g-d{color:var(--d);background:color-mix(in srgb,var(--d) 16%,transparent);border-color:color-mix(in srgb,var(--d) 45%,transparent)}
+.g-x{color:var(--muted);background:var(--surface-2);border-color:var(--border)}
+.mcard .statline{display:flex;gap:16px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.mcard .statline b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.mcard .domain{font-size:12px;color:var(--muted);border-top:1px dashed var(--border);padding-top:9px}
+.tick{color:var(--ok);font-weight:700} .up{color:var(--a);font-weight:700}
+.bars{display:flex;flex-direction:column;gap:9px}
+.bar-row{display:grid;grid-template-columns:110px 1fr 56px;align-items:center;gap:10px}
+.bar-row .who{font-size:13px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{background:var(--surface-2);border-radius:5px;height:20px;overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 78%,transparent),var(--accent));min-width:3px;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+.bar-val{font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted);text-align:right}
+.matrix{overflow-x:auto}
+.heat-table{border-collapse:separate;border-spacing:4px;font-size:12px}
+.heat-table th{font-weight:500;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:0 4px}
+.heat-table td.who{text-align:right;padding-right:6px;font-size:13px}
+.heat-cell{width:56px;height:30px;text-align:center;border-radius:5px;font-variant-numeric:tabular-nums;border:1px solid var(--border);font-weight:600}
+.heat-cell.zero{color:var(--muted);font-weight:400;background:var(--surface)!important}
+.legend{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-top:12px}
+.legend .sw{width:22px;height:12px;border-radius:3px;border:1px solid var(--border)}
+table.matrix-t{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+table.matrix-t th,table.matrix-t td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--border)}
+table.matrix-t th{color:var(--muted);font-weight:600;font-size:12px}
+table.matrix-t td.rlbl{text-align:left;white-space:nowrap}
+.mcell{display:inline-block;min-width:30px;padding:3px 8px;border-radius:6px;font-variant-numeric:tabular-nums;font-weight:600}
+.mcell.z{color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.sevlist{display:flex;flex-direction:column;gap:10px}
+.sev{display:grid;grid-template-columns:52px 1fr;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.sev .tag{display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;padding:10px}
+.sev.crit .tag{background:var(--crit)} .sev.high .tag{background:var(--high)} .sev.med .tag{background:var(--warn)}
+.sev .body{padding:11px 14px}
+.sev .body .path{font-family:var(--mono);font-size:12px;color:var(--accent);margin-bottom:3px;word-break:break-all}
+.sev .body .desc{font-size:13px}
+.sev .body .who{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+.member{border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:18px;background:var(--surface)}
+.member .mhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:14px}
+.member .mhead .name{font-size:17px;font-weight:600}
+.member .mhead .line{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:3px}
+.member h4{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:16px 0 8px}
+.member ul{margin:0;padding-left:18px} .member li{margin-bottom:6px}
+.acts{display:flex;flex-direction:column;gap:22px}
+.tier h4{margin:0 0 10px;font-size:14px;display:flex;align-items:center;gap:8px}
+.tier h4 .dot{width:9px;height:9px;border-radius:50%}
+.tier.t1 .dot{background:var(--crit)} .tier.t2 .dot{background:var(--warn)} .tier.t3 .dot{background:var(--info)} .tier.t0 .dot{background:var(--muted)}
+table.acts-t{border-collapse:collapse;width:100%;font-size:13px}
+table.acts-t td,table.acts-t th{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+table.acts-t td:first-child{width:34px;color:var(--muted);font-variant-numeric:tabular-nums}
+.owner{font-size:11px;color:var(--muted);white-space:nowrap}
+footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color:var(--muted);font-size:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+</style>
+<div class="wrap">
+<nav class="sidebar">
+  <h1>Team Quality Report</h1>
+  <div class="repo">newwebinfo · all branches</div>
+  <nav>
+    <div class="navlbl">Summary</div>
+    <a href="#overview">Team overview</a>
+    <a href="#activity">Activity cadence</a>
+    <a href="#issues">Issue matrix</a>
+    <a href="#blockers">Ship-blockers</a>
+    <div class="navlbl">Members</div>
+    <a href="#m-tayyab-rauf">Tayyab Rauf</a>
+    <div class="navlbl">Plan</div>
+    <a href="#actions">Action items</a>
+  </nav>
+</nav>
+<main>
+  <header class="page-head">
+    <h2>Team Git &amp; Code Quality Report</h2>
+    <div class="meta">
+      <span><b>Compiled</b> 2026-07-28</span>
+      <span><b>Period</b> 2026-05-11 → 2026-07-28</span>
+      <span><b>Scope</b> all branches · 935 commits</span>
+    </div>
+    <div class="callout">Git numbers are pulled live by <code>git-team-report</code>; grades &amp; code findings come from the config file. Ship-blockers were verified against HEAD. To refresh: rerun <code>git-team-report build</code>.</div>
+  </header>
+
+  <section id="overview">
+    <h3>Team overview</h3>
+    <p class="sub">Grades, pull stats, and ticket hygiene — ranked by commit volume across all branches.</p>
+    <div class="cards">
+      <div class="mcard">
+        <div class="top"><div><div class="name">Yasir Alam</div><div class="email">y.alam@</div></div>
+          <div class="grades"><span class="pill g-b"><span class="k">Git</span>B</span><span class="pill g-b"><span class="k">Code</span>B</span></div></div>
+        <div class="statline"><span><b>352</b> commits</span><span><b>+40.6k</b>/<b>−47.5k</b></span><span><b>47%</b> conv</span><span><b>91</b> MI</span></div>
+        <div class="domain">layout · features · shared · bff — widest surface, active cleanup</div>
+      </div>
+      <div class="mcard">
+        <div class="top"><div><div class="name">Arslan Ahmad</div><div class="email">arslan.ahmad@</div></div>
+          <div class="grades"><span class="pill g-b"><span class="k">Git</span>B</span><span class="pill g-c"><span class="k">Code</span>C+</span></div></div>
+        <div class="statline"><span><b>232</b> commits</span><span><b>+52.1k</b>/<b>−60.2k</b></span><span><b>0%</b> conv</span><span><b>76</b> MI</span></div>
+        <div class="domain">shared-auth · market-talks · BFF auth</div>
+      </div>
+      <div class="mcard">
+        <div class="top"><div><div class="name">M. Younas</div><div class="email">m.younas@</div></div>
+          <div class="grades"><span class="pill g-b"><span class="k">Git</span>B-</span><span class="pill g-c"><span class="k">Code</span>C</span></div></div>
+        <div class="statline"><span><b>196</b> commits</span><span><b>+29.2k</b>/<b>−12.9k</b></span><span><b>0%</b> conv</span><span><b>139</b> MI</span><span class="tick">✓ own account</span></div>
+        <div class="domain">post-card · dialogs · feed · post/opinion creators</div>
+      </div>
+      <div class="mcard" style="border-color:color-mix(in srgb,var(--a) 40%,var(--border))">
+        <div class="top"><div><div class="name">Tayyab Rauf</div><div class="email">t.rauf@</div></div>
+          <div class="grades"><span class="pill g-c"><span class="k">Git</span>C+</span><span class="pill g-a"><span class="k">Code</span>A-</span></div></div>
+        <div class="statline"><span><b>131</b> commits</span><span><b>+124.2k</b>/<b>−15.8k</b></span><span><b>5%</b> conv</span><span><b>16</b> MI</span><span class="up">▲ D→A-</span></div>
+        <div class="domain">MFE scaffold · shared-auth setup · research-reports · funds</div>
+      </div>
+      <div class="mcard">
+        <div class="top"><div><div class="name">Noor Muhammad</div><div class="email">n.muhammad@</div></div>
+          <div class="grades"><span class="pill g-c"><span class="k">Git</span>C+</span><span class="pill g-a"><span class="k">Code</span>A</span></div></div>
+        <div class="statline"><span><b>16</b> commits</span><span><b>+115.3k</b>/<b>−32.2k</b></span><span><b>6%</b> conv</span><span><b>0</b> MI</span><span class="" style="color:var(--warn)">stalled 2026-06-12</span></div>
+        <div class="domain">Bootstrap→Tailwind migration · community — team code benchmark</div>
+      </div>
+      <div class="mcard">
+        <div class="top"><div><div class="name">S. Ahmed</div><div class="email">s.ahmed@</div></div>
+          <div class="grades"><span class="pill g-c"><span class="k">Git</span>C</span><span class="pill g-a"><span class="k">Code</span>A-</span></div></div>
+        <div class="statline"><span><b>8</b> commits</span><span><b>+36</b>/<b>−10</b></span><span><b>0%</b> conv</span><span><b>2</b> MI</span><span class="tick">✓ own account</span></div>
+        <div class="domain">loginform · bff/middleware/security</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:20px">
+      <h4 style="margin:0 0 14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Commits by author · all branches</h4>
+      <div class="bars">
+        <div class="bar-row"><span class="who">Yasir</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-val">352</span></div>
+        <div class="bar-row"><span class="who">Arslan</span><div class="bar-track"><div class="bar-fill" style="width:65.9%"></div></div><span class="bar-val">232</span></div>
+        <div class="bar-row"><span class="who">M. Younas</span><div class="bar-track"><div class="bar-fill" style="width:55.7%"></div></div><span class="bar-val">196</span></div>
+        <div class="bar-row"><span class="who">Tayyab</span><div class="bar-track"><div class="bar-fill" style="width:37.2%"></div></div><span class="bar-val">131</span></div>
+        <div class="bar-row"><span class="who">Noor</span><div class="bar-track"><div class="bar-fill" style="width:4.5%"></div></div><span class="bar-val">16</span></div>
+        <div class="bar-row"><span class="who">S. Ahmed</span><div class="bar-track"><div class="bar-fill" style="width:2.3%"></div></div><span class="bar-val">8</span></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="activity">
+    <h3>Activity cadence</h3>
+    <p class="sub">Commits per month across the team's active window.</p>
+    <div class="panel matrix">
+      <table class="heat-table">
+        <thead><tr><th></th><th>May</th><th>Jun</th><th>Jul</th><th style="padding-left:12px">Last active</th></tr></thead>
+        <tbody>
+          <tr><td class="who">Yasir Alam</td><td class="heat-cell" style="background:rgba(var(--heat),0.17)">6</td><td class="heat-cell" style="background:rgba(var(--heat),0.74)">142</td><td class="heat-cell" style="background:rgba(var(--heat),1.00)">204</td><td style="padding-left:12px"><span style="color:var(--ok)">2026-07-27 ●</span></td></tr>
+          <tr><td class="who">Arslan Ahmad</td><td class="heat-cell" style="background:rgba(var(--heat),0.17)">6</td><td class="heat-cell" style="background:rgba(var(--heat),0.61)">111</td><td class="heat-cell" style="background:rgba(var(--heat),0.63)">115</td><td style="padding-left:12px"><span style="color:var(--ok)">2026-07-28 ●</span></td></tr>
+          <tr><td class="who">M. Younas</td><td class="heat-cell zero">—</td><td class="heat-cell" style="background:rgba(var(--heat),0.25)">24</td><td class="heat-cell" style="background:rgba(var(--heat),0.87)">172</td><td style="padding-left:12px"><span style="color:var(--ok)">2026-07-28 ●</span></td></tr>
+          <tr><td class="who">Tayyab Rauf</td><td class="heat-cell" style="background:rgba(var(--heat),0.20)">11</td><td class="heat-cell" style="background:rgba(var(--heat),0.21)">15</td><td class="heat-cell" style="background:rgba(var(--heat),0.59)">105</td><td style="padding-left:12px"><span style="color:var(--ok)">2026-07-27 ●</span></td></tr>
+          <tr><td class="who">Noor Muhammad</td><td class="heat-cell" style="background:rgba(var(--heat),0.18)">8</td><td class="heat-cell" style="background:rgba(var(--heat),0.18)">8</td><td class="heat-cell zero">—</td><td style="padding-left:12px"><span style="color:var(--warn)">2026-06-12 ○</span></td></tr>
+          <tr><td class="who">S. Ahmed</td><td class="heat-cell zero">—</td><td class="heat-cell zero">—</td><td class="heat-cell" style="background:rgba(var(--heat),0.18)">8</td><td style="padding-left:12px"><span style="color:var(--warn)">2026-07-01 ○</span></td></tr>
+        </tbody>
+      </table>
+      <div class="legend"><span>fewer</span><span class="sw" style="background:rgba(var(--heat),.19)"></span><span class="sw" style="background:rgba(var(--heat),.5)"></span><span class="sw" style="background:rgba(var(--heat),.8)"></span><span class="sw" style="background:rgba(var(--heat),1)"></span><span>more commits</span></div>
+    </div>
+  </section>
+
+  <hr class="divider">
+  <section id="issues">
+    <h3>Code issues at a glance</h3>
+    <p class="sub">Blame-attributed counts (editorial layer). The number is always shown — color only reinforces magnitude.</p>
+    <div class="panel matrix">
+      <table class="matrix-t">
+        <thead><tr><th class="rlbl" style="text-align:left">Issue</th><th>Yasir</th><th>Arslan</th><th>M. Younas</th><th>Tayyab</th><th>Noor</th></tr></thead>
+        <tbody>
+          <tr><td class="rlbl"><code>any</code> types</td><td><span class="mcell" style="background:rgba(207,34,46,0.15)">7</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.07)">1</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.12)">5</span></td><td><span class="mcell z">0</span></td><td><span class="mcell z">0</span></td></tr>
+          <tr><td class="rlbl"><code>console.*</code> in UI</td><td><span class="mcell z">0</span></td><td><span class="mcell z">0</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.07)">1</span></td><td><span class="mcell z">0</span></td><td><span class="mcell z">0</span></td></tr>
+          <tr><td class="rlbl">Bare subscriptions</td><td><span class="mcell" style="background:rgba(207,34,46,0.34)">22</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.70)">~55</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.44)">~30</span></td><td><span class="mcell z">0</span></td><td><span class="mcell z">0</span></td></tr>
+          <tr><td class="rlbl">Unguarded DOM</td><td><span class="mcell" style="background:rgba(207,34,46,0.24)">14</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.24)">14</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.16)">8</span></td><td><span class="mcell z">0</span></td><td><span class="mcell z">0</span></td></tr>
+          <tr><td class="rlbl">TODO / FIXME</td><td><span class="mcell" style="background:rgba(207,34,46,0.09)">2</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.16)">8</span></td><td><span class="mcell z">0</span></td><td><span class="mcell z">0</span></td><td><span class="mcell z">0</span></td></tr>
+          <tr><td class="rlbl">Files &gt; 200 lines</td><td><span class="mcell" style="background:rgba(207,34,46,0.11)">4</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.25)">15</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.09)">2</span></td><td><span class="mcell z">0</span></td><td><span class="mcell z">0</span></td></tr>
+          <tr><td class="rlbl">Non-null <code>!.</code></td><td><span class="mcell z">0</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.16)">8</span></td><td><span class="mcell" style="background:rgba(207,34,46,0.10)">3</span></td><td><span class="mcell z">0</span></td><td><span class="mcell z">0</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub" style="margin-top:12px">TypeScript strict mode is on globally · <b style="color:var(--text)">no ESLint configured</b> — nothing above is caught at commit time.</p>
+  </section>
+  <hr class="divider">
+  <section id="blockers">
+    <h3>Ship-blockers</h3>
+    <p class="sub">Fix before next release.</p>
+    <div class="sevlist">
+      <div class="sev crit"><div class="tag">C1</div><div class="body">
+        <div class="path">src/bff/config.ts:25</div><div class="desc"><code>AI_API_URL</code> falls back to a dev endpoint → prod silently proxies auth tokens to dev if env var unset. Fix: <code>requireEnv()</code>.</div><div class="who">Owner · Yasir</div></div></div>
+      <div class="sev crit"><div class="tag">C2</div><div class="body">
+        <div class="path">src/app/shared/post-detail-dialog/…:22-23</div><div class="desc"><code>document.body.style.overflow</code> without <code>isPlatformBrowser()</code> → SSR crash.</div><div class="who">Owner · M. Younas</div></div></div>
+      <div class="sev high"><div class="tag">H2</div><div class="body">
+        <div class="path">src/app/shared/services/post-interactions.service.ts:81-101</div><div class="desc">State-mutating calls use HTTP <b>GET</b> → CSRF via <code>&lt;img src&gt;</code>. Fix: POST/DELETE.</div><div class="who">Owner · M. Younas</div></div></div>
+    </div>
+  </section>
+  <hr class="divider">
+  <section id="members">
+    <h3>Member detail</h3>
+
+    <div class="member" id="m-tayyab-rauf" style="border-color:color-mix(in srgb,var(--a) 45%,var(--border))">
+      <div class="mhead"><div><div class="name">Tayyab Rauf <span class="up">▲ Git D→C+ · Code D→A-</span></div><div class="line">131 commits · May 11 / Jun 15 / Jul 105 · 5% conventional · 16 MI</div></div>
+        <div class="grades"><span class="pill g-c"><span class="k">Git</span>C+</span><span class="pill g-a"><span class="k">Code</span>A-</span></div></div>
+      <h4>Git — C+ (was D)</h4>
+      <ul><li>Far more active; recent commits are properly conventional. Still dragged by early accidental shell-command commits → coordinate a history cleanup.</li></ul>
+      <h4>Code — A- (was D)</h4>
+      <ul><li>Scaffold files with the bulk of the findings were deleted; residual items fixed.</li><li><span class="tick">✅</span> dead code, non-null assertion, bare subscribe, and an unguarded util all resolved.</li></ul>
+      <p class="sub" style="margin:6px 0 0">Grep-level tallies overstated the debt; verified surviving code is clean across all 8 categories.</p>
+    </div>
+  </section>
+  <hr class="divider">
+  <section id="actions">
+    <h3>Action items</h3>
+    <div class="acts">
+      <div class="tier t1">
+        <h4><span class="dot"></span>Fix before next release · ship-blockers</h4>
+        <table class="acts-t"><tbody>
+          <tr><td>1</td><td>SSR crash — <code>document.body</code> in dialogs → <code>isPlatformBrowser()</code></td><td class="owner">M. Younas</td></tr>
+          <tr><td>2</td><td>Credential leak — BFF dev-URL fallback → <code>requireEnv()</code></td><td class="owner">Yasir</td></tr>
+          <tr><td>3</td><td>CSRF — state mutations via GET → POST/DELETE</td><td class="owner">M. Younas</td></tr>
+        </tbody></table>
+      </div>
+      <div class="tier t2">
+        <h4><span class="dot"></span>This sprint</h4>
+        <table class="acts-t"><tbody>
+          <tr><td>4</td><td>Subscription leaks → <code>takeUntilDestroyed()</code></td><td class="owner">Arslan · Younas · Yasir</td></tr>
+          <tr><td>5</td><td>SSR-unsafe DOM → <code>isPlatformBrowser()</code></td><td class="owner">Arslan · Yasir</td></tr>
+        </tbody></table>
+      </div>
+      <div class="tier t0">
+        <h4><span class="dot"></span>One-time team setup</h4>
+        <table class="acts-t"><tbody>
+          <tr><td>6</td><td><b>Add ESLint</b> — nothing above is enforced at commit time</td><td class="owner">Team</td></tr>
+          <tr><td>7</td><td><b>Add commit-lint hook</b> — enforce <code>type(scope): message | TICKET</code></td><td class="owner">Team</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Compiled 2026-07-28 · git/pull stats auto-refreshed from live <code>git log --all</code> via <code>git-team-report</code> · grades &amp; findings from the config file.
+  </footer>
+</main>
+</div>

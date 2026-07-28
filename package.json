@@ -1,0 +1,33 @@
+{
+  "name": "git-team-report",
+  "version": "1.0.0",
+  "description": "Generate a graphical team git & code-quality report from any repo. Numbers are pulled live from git; grades and findings live in a config you edit. Incremental: each build shows only what changed since the last one.",
+  "type": "module",
+  "bin": {
+    "git-team-report": "bin/cli.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "config/config.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "demo": "node bin/cli.mjs build --config config/config.example.json --out examples/report.html"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "git",
+    "report",
+    "code-quality",
+    "team",
+    "dashboard",
+    "blame",
+    "cli"
+  ],
+  "license": "MIT",
+  "dependencies": {}
+}
