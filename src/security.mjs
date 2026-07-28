@@ -80,6 +80,20 @@ export const SECURITY_RULES = [
 
 const clip = (s, n = 160) => { s = s.trim(); return s.length > n ? s.slice(0, n) + '…' : s; };
 
+/** Parse `git blame --line-porcelain` → array where index i = { name, email } of output line i. */
+function blameAuthors(git, file) {
+  const out = git(`blame --line-porcelain -w -- "${file}"`);
+  if (!out) return [];
+  const arr = [];
+  let name = 'unknown', email = 'unknown';
+  for (const line of out.split('\n')) {
+    if (line.startsWith('author-mail ')) email = line.slice(12).replace(/[<>]/g, '').trim();
+    else if (line.startsWith('author ')) name = line.slice(7).trim();
+    else if (line[0] === '\t') arr.push({ name, email });
+  }
+  return arr;
+}
+
 /**
  * Scan tracked files. Returns findings grouped by vector:
  *   { byVector: { ReDoS: [ {file,line,severity,snippet,fix,review,id} ], ... }, files }
@@ -96,14 +110,18 @@ export function scanSecurity(git, cwd, { rules = SECURITY_RULES, onProgress } = 
     let lines;
     try { lines = readFileSync(join(cwd, file), 'utf8').split('\n'); } catch { continue; }
     if (lines.some((l) => l.length > MINIFIED_LINE)) { scanned++; continue; } // minified/generated — skip
+    let blame = null; // lazily blamed on first hit, then reused for this file
+    const ensureBlame = () => (blame ??= blameAuthors(git, file));
     for (const rule of rules) {
       if (rule.pathInclude && !rule.pathInclude.test(file)) continue;
       if (rule.pathExclude && rule.pathExclude.test(file)) continue;
       for (let i = 0; i < lines.length; i++) {
         if (rule.re.test(lines[i])) {
+          const who = ensureBlame()[i] || { name: 'unknown', email: '' };
           byVector[rule.vector].push({
             id: rule.id, file, line: i + 1, severity: rule.severity,
             snippet: clip(lines[i]), fix: rule.fix, review: !!rule.review,
+            author: who.name, authorEmail: who.email,
           });
         }
       }
@@ -139,10 +157,14 @@ export function securityMarkdown(result, { repoName, date }) {
       const g0 = group[0];
       md += `**${g0.severity}${g0.review ? ' _(review)_' : ''}** — ${group.length} location${group.length > 1 ? 's' : ''}:\n\n`;
       for (const h of group.slice(0, 20)) {
-        md += `- \`${h.file}:${h.line}\`\n  \`\`\`\n  ${h.snippet}\n  \`\`\`\n`;
+        md += `- \`${h.file}:${h.line}\` — **${h.author}**\n  \`\`\`\n  ${h.snippet}\n  \`\`\`\n`;
       }
       if (group.length > 20) md += `- …and ${group.length - 20} more\n`;
-      md += `\n  **Fix:** ${g0.fix}\n\n`;
+      // who owns these lines (by git blame)
+      const tally = {};
+      for (const h of group) tally[h.author] = (tally[h.author] || 0) + 1;
+      const owners = Object.entries(tally).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n} (${c})`).join(', ');
+      md += `\n  **Owner(s):** ${owners}\n  **Fix:** ${g0.fix}\n\n`;
     }
   }
   return md;

@@ -41,8 +41,9 @@ Open `git-team-report.html` in a browser, or publish/serve it however you like �
 git-team-report security            # writes security-scan.md
 ```
 
-Greps for signals of **six vulnerability vectors** and attributes each to a
-`file:line` with the snippet, a risk level, and a recommended fix:
+Greps for signals of **six vulnerability vectors** and reports each with a
+`file:line`, the snippet, a risk level, a recommended fix, and the **developer who
+wrote the line** (via `git blame`) plus an owner tally per group:
 
 1. **ReDoS** — nested-quantifier regexes, dynamic `new RegExp`
 2. **Secrets** — hardcoded keys/tokens, private-key blocks, AWS IDs, non-public env vars reaching the client
