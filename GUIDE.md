@@ -7,12 +7,15 @@ A 2-minute guide for anyone who wants to run the report on their repo.
 Point it at any git repo and it produces two things, entirely from your local git
 history and source — **no server, no login, no data leaves your machine**:
 
-1. **A team report** (`git-team-report.html`) — a single self-contained web page:
-   commits/lines per author, monthly activity heatmap, an auto-scanned code-quality
-   issue matrix (blame-attributed), and first-pass Git/Code grades.
-2. **A security scan** (`security-scan.md`) — signals for 6 vulnerability vectors
-   (ReDoS, secret leakage, injection/XSS, large-payload DoS, clipboard/pastejacking,
-   replay), each with file:line, the snippet, a risk level, and a suggested fix.
+1. **A team report** (`git-team-report.html`) — a single self-contained web page with
+   **everything in one file**: commits/lines per author, monthly activity heatmap, an
+   auto-scanned code-quality issue matrix (blame-attributed), first-pass Git/Code
+   grades, **and a Security section** covering all 6 vulnerability vectors (ReDoS,
+   secret leakage, injection/XSS, large-payload DoS, clipboard/pastejacking, replay)
+   — each finding with file:line, snippet, risk level, fix, and the developer who
+   wrote the line.
+2. *(optional)* A standalone **security report** (`security-scan.md`) via the
+   `security` command, if someone wants just the vulnerability findings as Markdown.
 
 ## Prerequisites
 

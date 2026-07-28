@@ -115,25 +115,80 @@ table.acts-t td,table.acts-t th{padding:9px 12px;text-align:left;border-bottom:1
 table.acts-t td:first-child{width:34px;color:var(--muted);font-variant-numeric:tabular-nums}
 .owner{font-size:11px;color:var(--muted);white-space:nowrap}
 footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color:var(--muted);font-size:12px}
+.secsum{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.chip{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-variant-numeric:tabular-nums}
+.chip b{color:var(--text)} .chip.hi{color:var(--high);border-color:color-mix(in srgb,var(--high) 40%,transparent)}
+.chip.crit{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,transparent)}
+.secgroup{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin-bottom:10px;overflow:hidden}
+.secgroup>summary{cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:10px;font-weight:600;list-style:none}
+.secgroup>summary::-webkit-details-marker{display:none}
+.secgroup>summary .cnt{margin-left:auto;color:var(--muted);font-weight:400;font-size:12px}
+.sevchip{font-size:11px;font-weight:700;color:#fff;padding:2px 8px;border-radius:5px}
+.sevchip.High{background:var(--high)} .sevchip.Medium{background:var(--warn)} .sevchip.Low{background:var(--muted)} .sevchip.clean{background:var(--ok)}
+.sec-body{padding:4px 16px 14px;border-top:1px solid var(--border)}
+.sec-item{padding:10px 0;border-bottom:1px dashed var(--border)} .sec-item:last-child{border-bottom:0}
+.sec-item .loc{font-family:var(--mono);font-size:12px;color:var(--accent);word-break:break-all}
+.sec-item .who{font-size:11px;color:var(--muted);margin-left:6px}
+.sec-item pre{margin:6px 0 0;background:var(--surface-2);border-radius:5px;padding:8px 10px;overflow-x:auto;font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-word}
+.secfix{margin-top:10px;font-size:12px;color:var(--muted)} .secfix b{color:var(--text)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 </style>`;
 
 const MONTH_LBL = { '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec' };
 const CRIT_RGB = '207,34,46';
+const SEC_VECTORS = ['ReDoS', 'Secrets', 'Injection/XSS', 'LPDoS', 'Clipboard', 'Replay'];
+const SEV_RANK = { High: 0, Medium: 1, Low: 2 };
 const esc = (s) => String(s ?? '').replace(/&(?!(amp|lt|gt|#|quot);)/g, '&amp;');
 const fmtK = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n));
 const gradeCls = (g) => { const c = (g || '')[0]; return c === 'A' ? 'g-a' : c === 'B' ? 'g-b' : c === 'C' ? 'g-c' : c === 'D' ? 'g-d' : 'g-x'; };
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const firstName = (n) => (n.startsWith('M. ') || n.startsWith('S. ') ? n : n.split(' ')[0]);
 
+/** Security scan → collapsible HTML section (grouped by vector, blame-attributed). */
+function securityHtml(sec) {
+  if (!sec) return '';
+  const all = Object.values(sec.byVector).flat();
+  const c = { High: 0, Medium: 0, Low: 0 };
+  for (const f of all) c[f.severity]++;
+
+  const groups = SEC_VECTORS.map((v) => {
+    const hits = (sec.byVector[v] || []).slice().sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
+    if (!hits.length) {
+      return `<details class="secgroup"><summary><span class="sevchip clean">clean</span> ${v} <span class="cnt">No issues detected</span></summary></details>`;
+    }
+    const worst = hits[0].severity;
+    const byId = {};
+    for (const h of hits) (byId[h.id] ??= []).push(h);
+    const body = Object.values(byId).map((g) => {
+      const items = g.slice(0, 15).map((h) =>
+        `<div class="sec-item"><span class="loc">${esc(h.file)}:${h.line}</span><span class="who">— ${esc(h.author)}</span><pre>${esc(h.snippet)}</pre></div>`).join('');
+      const more = g.length > 15 ? `<div class="sec-item"><span class="who">…and ${g.length - 15} more</span></div>` : '';
+      const tally = {};
+      for (const h of g) tally[h.author] = (tally[h.author] || 0) + 1;
+      const owners = Object.entries(tally).sort((a, b) => b[1] - a[1]).map(([n, k]) => `${esc(n)} (${k})`).join(', ');
+      return `${items}${more}<div class="secfix"><b>Owner(s):</b> ${owners}<br><b>Fix:</b> ${g[0].fix}${g[0].review ? ' <em>(needs review)</em>' : ''}</div>`;
+    }).join('<hr style="border:0;border-top:1px dashed var(--border);margin:12px 0">');
+    return `<details class="secgroup"${worst === 'High' ? ' open' : ''}><summary><span class="sevchip ${worst}">${worst}</span> ${v} <span class="cnt">${hits.length} signal(s)</span></summary><div class="sec-body">${body}</div></details>`;
+  }).join('\n      ');
+
+  return `
+  <hr class="divider">
+  <section id="security">
+    <h3>Security signal scan</h3>
+    <p class="sub">Scanned ${sec.files} files · <b>${all.length}</b> signals. <b>Signals, not confirmed vulnerabilities</b> — items marked <em>(needs review)</em> need a human to confirm exploitability. Each line is attributed via <code>git blame</code>; vendored/minified code is skipped.</p>
+    <div class="secsum"><span class="chip crit"><b>${c.High}</b> High</span><span class="chip hi"><b>${c.Medium}</b> Medium</span><span class="chip"><b>${c.Low}</b> Low</span><span class="chip"><b>${sec.files}</b> files</span></div>
+      ${groups}
+  </section>`;
+}
+
 /**
  * @param {object} config  loaded config (authors, grades, matrix, blockers, members, actions, meta)
  * @param {Map<string,object>} metrics  email -> metrics from collect.metricsFor
- * @param {object} opts  { repoName, throughDate }
+ * @param {object} opts  { repoName, throughDate, security }
  */
 export function renderReport(config, metrics, opts) {
-  const { repoName, throughDate } = opts;
+  const { repoName, throughDate, security } = opts;
   const authors = config.authors.map((a) => ({ ...a, m: metrics.get(a.email) || { commits: 0, months: {}, convPct: 0, mi: 0, added: 0, deleted: 0, lastActive: null } }));
   const active = authors.filter((a) => a.m.commits > 0);
   const maxCommits = Math.max(...active.map((a) => a.m.commits), 1);
@@ -246,6 +301,7 @@ ${secs}${note}
     </div>
   </section>` : '';
 
+  const secSection = securityHtml(security);
   const navMembers = memberAuthors.map((a) => `    <a href="#m-${slug(a.name)}">${esc(a.name)}</a>`).join('\n');
   const teamCommits = active.reduce((n, a) => n + a.m.commits, 0);
   const title = esc(config.meta?.title || `Team Git & Code Quality Report — ${repoName}`);
@@ -262,6 +318,7 @@ ${STYLE}
     <a href="#activity">Activity cadence</a>
     ${matrixSection ? '<a href="#issues">Issue matrix</a>' : ''}
     ${blockersSection ? '<a href="#blockers">Ship-blockers</a>' : ''}
+    ${secSection ? '<a href="#security">Security scan</a>' : ''}
     ${navMembers ? '<div class="navlbl">Members</div>\n' + navMembers : ''}
     ${actionsSection ? '<div class="navlbl">Plan</div>\n    <a href="#actions">Action items</a>' : ''}
   </nav>
@@ -303,7 +360,7 @@ ${STYLE}
       <div class="legend"><span>fewer</span><span class="sw" style="background:rgba(var(--heat),.19)"></span><span class="sw" style="background:rgba(var(--heat),.5)"></span><span class="sw" style="background:rgba(var(--heat),.8)"></span><span class="sw" style="background:rgba(var(--heat),1)"></span><span>more commits</span></div>
     </div>
   </section>
-${matrixSection}${blockersSection}${memberSection}${actionsSection}
+${matrixSection}${blockersSection}${secSection}${memberSection}${actionsSection}
 
   <footer>
     Compiled ${throughDate} · git/pull stats auto-refreshed from live <code>git log --all</code> via <code>git-team-report</code> · grades &amp; findings from the config file.

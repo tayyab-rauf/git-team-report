@@ -102,7 +102,7 @@ function synthConfig(git) {
   };
 }
 
-export function build({ cwd, configPath, outPath, full, scan = true }) {
+export function build({ cwd, configPath, outPath, full, scan = true, security: doSecurity = true }) {
   const git = makeGit(cwd);
   ensureRepo(git);
 
@@ -141,8 +141,16 @@ export function build({ cwd, configPath, outPath, full, scan = true }) {
     config.issueMatrix = matrixFromScan(scanResult, cardAuthors);
   }
 
+  // security scan (folded into the same HTML) unless disabled
+  let securityResult = null;
+  if (doSecurity) {
+    console.log(`  Scanning for security signals…`);
+    securityResult = scanSecurity(git, cwd, { onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+    process.stdout.write('\r' + ' '.repeat(30) + '\r');
+  }
+
   // render
-  const html = renderReport(config, metrics, { repoName, throughDate });
+  const html = renderReport(config, metrics, { repoName, throughDate, security: securityResult });
   const out = outPath ? resolve(outPath) : join(cwd, OUT_NAME);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, html);
@@ -169,6 +177,12 @@ export function build({ cwd, configPath, outPath, full, scan = true }) {
     console.log(`    ${r.name.padEnd(20)} ${String(r.commits).padStart(5)} total   ${(r.since > 0 ? '+' + r.since + ' new' : 'no new').padEnd(10)}  Git/Code ${r.grades}${vs}`);
   }
   if (scanResult) console.log(`\n  Scanned ${scanResult.files} source files · ${scanResult.largeFiles} over 200 lines.`);
+  if (securityResult) {
+    const all = Object.values(securityResult.byVector).flat();
+    const c = { High: 0, Medium: 0, Low: 0 };
+    for (const f of all) c[f.severity]++;
+    console.log(`  Security: ${all.length} signals (${c.High} High · ${c.Medium} Medium · ${c.Low} Low) — see the report's Security section.`);
+  }
   console.log(`  Grades marked * are auto-derived (git heuristic / blame scan) — set them in a config to override.`);
   console.log('');
 }

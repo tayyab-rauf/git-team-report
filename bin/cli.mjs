@@ -38,6 +38,7 @@ Flags:
   --config <file>  config path (default: ./git-team-report.config.json)
   --out <file>     output HTML (default: ./git-team-report.html)
   --no-scan        skip the code-quality blame scan (git stats only, faster)
+  --no-security    skip the security scan section in the HTML report
   --full           ignore the saved footprint; recompute from the period start
   --force          (init) overwrite an existing config
   -h, --help       show this help
@@ -55,7 +56,7 @@ try {
   if (cmd === 'init') {
     init({ cwd, force: flag('--force') });
   } else if (cmd === 'build') {
-    build({ cwd, configPath: val('--config'), outPath: val('--out'), full: flag('--full'), scan: !flag('--no-scan') });
+    build({ cwd, configPath: val('--config'), outPath: val('--out'), full: flag('--full'), scan: !flag('--no-scan'), security: !flag('--no-security') });
   } else if (cmd === 'security') {
     security({ cwd, outPath: val('--out') });
   } else {
