@@ -10,6 +10,7 @@ import {
 } from './collect.mjs';
 import { scanCode, matrixFromScan, codeGradeFrom } from './scan.mjs';
 import { scanSecurity, securityMarkdown } from './security.mjs';
+import { resolvePack } from './languages.mjs';
 import { renderReport } from './render.mjs';
 
 const CONFIG_NAME = 'git-team-report.config.json';
@@ -63,13 +64,15 @@ export function init({ cwd, force }) {
   console.log(`  See the shipped config/config.example.json for a fully filled-in example.\n`);
 }
 
-export function security({ cwd, outPath, gitleaks = true, semgrep = false }) {
+export function security({ cwd, outPath, gitleaks = true, semgrep = false, lang }) {
   const git = makeGit(cwd);
   ensureRepo(git);
   const repoName = repoNameOf(git, cwd);
   const date = dataThroughDate(git);
+  const { pack } = resolvePack(git, lang);
+  console.log(`  Language pack: ${pack.label}`);
   console.log(`  Scanning for security signals…${semgrep ? ' (running Semgrep — may take a while)' : ''}`);
-  const result = scanSecurity(git, cwd, { gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+  const result = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
   process.stdout.write('\r' + ' '.repeat(30) + '\r');
   const md = securityMarkdown(result, { repoName, date });
   const out = outPath ? resolve(outPath) : join(cwd, 'security-scan.md');
@@ -102,7 +105,7 @@ function synthConfig(git) {
   };
 }
 
-export function build({ cwd, configPath, outPath, full, scan = true, security: doSecurity = true, gitleaks = true, semgrep = false }) {
+export function build({ cwd, configPath, outPath, full, scan = true, security: doSecurity = true, gitleaks = true, semgrep = false, lang }) {
   const git = makeGit(cwd);
   ensureRepo(git);
 
@@ -112,6 +115,9 @@ export function build({ cwd, configPath, outPath, full, scan = true, security: d
   if (!hasConfig) console.log(`\n  No config found — running zero-config (authors + issue matrix auto-derived).`);
   const repoName = repoNameOf(git, cwd);
   const throughDate = dataThroughDate(git);
+
+  const { pack } = resolvePack(git, lang || config.language);
+  console.log(`  Language pack: ${pack.label}`);
 
   const stateFile = join(cwd, STATE_DIR, 'state.json');
   const prev = !full && existsSync(stateFile) ? readJson(stateFile) : null;
@@ -125,7 +131,7 @@ export function build({ cwd, configPath, outPath, full, scan = true, security: d
   let scanResult = null;
   if (scan) {
     console.log(`  Scanning source for code smells (git blame attribution)…`);
-    scanResult = scanCode(git, cwd, { onProgress: (n, t) => process.stdout.write(`\r    blamed ${n}/${t} files`) });
+    scanResult = scanCode(git, cwd, { rules: pack.codeRules, globs: pack.codeGlobs, onProgress: (n, t) => process.stdout.write(`\r    blamed ${n}/${t} files`) });
     process.stdout.write('\r' + ' '.repeat(40) + '\r');
   }
 
@@ -138,14 +144,14 @@ export function build({ cwd, configPath, outPath, full, scan = true, security: d
     if (!a.codeGrade && scanResult) a.codeGrade = codeGradeFrom(scanResult.byEmail[a.email]).grade;
   }
   if (scanResult && (!config.issueMatrix || !config.issueMatrix.rows?.length)) {
-    config.issueMatrix = matrixFromScan(scanResult, cardAuthors);
+    config.issueMatrix = matrixFromScan(scanResult, cardAuthors, pack.label);
   }
 
   // security scan (folded into the same HTML) unless disabled
   let securityResult = null;
   if (doSecurity) {
     console.log(`  Scanning for security signals…${semgrep ? ' (running Semgrep — may take a while)' : ''}`);
-    securityResult = scanSecurity(git, cwd, { gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+    securityResult = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
     process.stdout.write('\r' + ' '.repeat(30) + '\r');
   }
 

@@ -72,6 +72,25 @@ Off by default because Semgrep is heavier and fetches rule packs on first run; s
 rule set with `$GTR_SEMGREP_CONFIG` (default `p/security-audit`). Not installed → the
 flag is a graceful no-op and the built-in heuristics stand.
 
+### Language packs
+
+The code-quality and security scanners are **language-aware**. On each run the tool
+detects the repo's dominant source language and loads the matching rule pack; force
+one with `--lang`.
+
+| Pack (`--lang`) | Detected by | Code-quality rules | Security rules |
+|---|---|---|---|
+| `typescript` (default) | `.ts` / `.tsx` | `any`, `console`, bare `subscribe`, unguarded DOM, non-null `!.`, TODO, large files | XSS/`bypassSecurityTrust`/`innerHTML`, NoSQL ops, ReDoS, clipboard, LPDoS, replay, secrets |
+| `java` | `.java` | `System.out/err`, `printStackTrace`, empty catch, `==` on strings, TODO, large files | SQL-concat, `Runtime.exec`/`ProcessBuilder`, unsafe deserialization, `MultipartFile`, mutation mappings, secrets |
+| `flutter` | `.dart` | `print()`, null-assertion `!`, `// ignore:`, TODO, large files | `innerHtml`, `Clipboard`, mutation calls, secrets |
+| `generic` | anything else | TODO, large files | secret patterns |
+
+- **Git stats, grades, activity, authors** are language-agnostic — they work everywhere.
+- **gitleaks** (secrets) and **Semgrep** (SAST, incl. strong Java rules) work across
+  languages regardless of the pack, and layer on top when installed.
+- The report states which pack was used; `git-team-report build --lang java` forces it,
+  or set `"language": "java"` in the config.
+
 ### Commands & flags
 
 | | |
@@ -80,6 +99,9 @@ flag is a graceful no-op and the built-in heuristics stand.
 | `build` | Pull live metrics, auto-scan code quality, render the HTML, print the delta |
 | `security` | Scan the 6 vulnerability vectors → structured Markdown report |
 | `--no-scan` | (`build`) skip the code-quality blame scan (git stats only) |
+| `--lang <id>` | force a language pack: `typescript` / `java` / `flutter` / `generic` |
+| `--no-gitleaks` | force built-in secret patterns even if gitleaks is installed |
+| `--semgrep` | also run Semgrep SAST (needs semgrep installed; slower) |
 | `--cwd <path>` | Run against another repo (default: current dir) |
 | `--config <file>` | Config path (default: `./git-team-report.config.json`) |
 | `--out <file>` | Output HTML path (default: `./git-team-report.html`) |

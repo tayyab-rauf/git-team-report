@@ -24,7 +24,7 @@ export const DEFAULT_RULES = [
   { key: 'nonnull', label: 'Non-null <code>!.</code>',    re: /[\w\)\]]!\./ },
 ];
 
-const DEFAULT_GLOBS = ["*.ts", "*.tsx"];
+export const DEFAULT_GLOBS = ["*.ts", "*.tsx"];
 const DEFAULT_EXCLUDE = /(node_modules|\.spec\.|\.d\.ts$|\.test\.|dist\/|\.min\.)/;
 const LARGE_FILE_LINES = 200;
 
@@ -97,7 +97,13 @@ export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOB
 
 /** Weighted score → a Code grade. Transparent heuristic; a config grade overrides it. */
 export function codeGradeFrom(counts = {}) {
-  const w = { any: 2, console: 3, subs: 1, dom: 2, todo: 1, nonnull: 1, large: 2 };
+  const w = {
+    any: 2, console: 3, subs: 1, dom: 2, todo: 1, nonnull: 1, large: 2,
+    // java
+    sysout: 2, stacktrace: 1, emptycatch: 2, streq: 1,
+    // dart
+    print: 2, nullassert: 1, ignore: 1,
+  };
   const score = Object.entries(counts).reduce((s, [k, n]) => s + (w[k] || 1) * n, 0);
   const bands = [[0, 'A'], [3, 'A-'], [8, 'B+'], [16, 'B'], [28, 'B-'], [45, 'C+'], [70, 'C'], [110, 'C-']];
   let grade = 'D';
@@ -106,10 +112,10 @@ export function codeGradeFrom(counts = {}) {
 }
 
 /** Build a render-ready issueMatrix from scan results for the given authors. */
-export function matrixFromScan(scan, authors) {
+export function matrixFromScan(scan, authors, langLabel) {
   const cols = authors.filter((a) => !a.hideFromCards);
   return {
-    note: `Auto-scanned from HEAD via <code>git blame</code> across ${scan.files} source files. The number is always shown — color only reinforces magnitude.`,
+    note: `Auto-scanned from HEAD via <code>git blame</code> across ${scan.files}${langLabel ? ` ${langLabel}` : ''} source files. The number is always shown — color only reinforces magnitude.`,
     footnote: `Heuristic grep-level attribution — treat as a signal, not a verdict. Override any cell (or a whole grade) in the config.`,
     columns: cols.map((a) => a.short || a.name),
     rows: scan.rules.map((r) => ({

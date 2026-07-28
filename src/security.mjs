@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
 import { runSemgrep } from './semgrep.mjs';
 
-const GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.html', '*.vue'];
+export const SECURITY_GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.html', '*.vue'];
 // Exclude tests, type decls, build output, and — critically — vendored/generated
 // assets (charting libs, polyfills, bundles). Those are minified third-party code
 // and produce almost nothing but false positives.
@@ -101,8 +101,11 @@ function blameAuthors(git, file) {
  * Scan tracked files. Returns findings grouped by vector:
  *   { byVector: { ReDoS: [ {file,line,severity,snippet,fix,review,id} ], ... }, files }
  */
-export function scanSecurity(git, cwd, { rules = SECURITY_RULES, onProgress, gitleaks = true, semgrep = false } = {}) {
-  const listed = git(`ls-files -- ${GLOBS.map((g) => `"${g}"`).join(' ')}`)
+/** The secret-detection rules alone — reused by non-web language packs. */
+export const SECRET_RULES = SECURITY_RULES.filter((r) => r.vector === 'Secrets');
+
+export function scanSecurity(git, cwd, { rules = SECURITY_RULES, globs = SECURITY_GLOBS, onProgress, gitleaks = true, semgrep = false } = {}) {
+  const listed = git(`ls-files -- ${globs.map((g) => `"${g}"`).join(' ')}`)
     .split('\n').filter(Boolean).filter((f) => !EXCLUDE.test(f));
 
   const byVector = {};
