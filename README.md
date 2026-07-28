@@ -72,6 +72,14 @@ Off by default because Semgrep is heavier and fetches rule packs on first run; s
 rule set with `$GTR_SEMGREP_CONFIG` (default `p/security-audit`). Not installed → the
 flag is a graceful no-op and the built-in heuristics stand.
 
+**Missing tool? It offers to install.** When gitleaks (or semgrep, with `--semgrep`)
+isn't found, an **interactive** run asks whether to install it for a stronger scan and,
+on _yes_, runs the right command for your machine (brew / pipx / pip / go) then scans.
+Consent-first: the prompt **defaults to no**, non-interactive/CI runs never install (they
+just print the command), and any failure falls back to the built-in scan. Skip the
+question with `--no-prompt`; auto-install without asking (e.g. in a script) with
+`--install-tools`.
+
 ### Language packs
 
 The code-quality and security scanners are **language-aware**. On each run the tool

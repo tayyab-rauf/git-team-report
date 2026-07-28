@@ -11,6 +11,7 @@ import {
 import { scanCode, matrixFromScan, codeGradeFrom } from './scan.mjs';
 import { scanSecurity, securityMarkdown } from './security.mjs';
 import { resolvePack } from './languages.mjs';
+import { ensureTool } from './tools.mjs';
 import { renderReport } from './render.mjs';
 
 const CONFIG_NAME = 'git-team-report.config.json';
@@ -64,13 +65,15 @@ export function init({ cwd, force }) {
   console.log(`  See the shipped config/config.example.json for a fully filled-in example.\n`);
 }
 
-export function security({ cwd, outPath, gitleaks = true, semgrep = false, lang }) {
+export async function security({ cwd, outPath, gitleaks = true, semgrep = false, lang, installTools = false, prompt = true }) {
   const git = makeGit(cwd);
   ensureRepo(git);
   const repoName = repoNameOf(git, cwd);
   const date = dataThroughDate(git);
   const { pack } = resolvePack(git, lang);
   console.log(`  Language pack: ${pack.label}`);
+  if (gitleaks) await ensureTool('gitleaks', { autoYes: installTools, prompt });
+  if (semgrep) await ensureTool('semgrep', { autoYes: installTools, prompt });
   console.log(`  Scanning for security signals…${semgrep ? ' (running Semgrep — may take a while)' : ''}`);
   const result = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
   process.stdout.write('\r' + ' '.repeat(30) + '\r');
@@ -105,7 +108,7 @@ function synthConfig(git) {
   };
 }
 
-export function build({ cwd, configPath, outPath, full, scan = true, security: doSecurity = true, gitleaks = true, semgrep = false, lang }) {
+export async function build({ cwd, configPath, outPath, full, scan = true, security: doSecurity = true, gitleaks = true, semgrep = false, lang, installTools = false, prompt = true }) {
   const git = makeGit(cwd);
   ensureRepo(git);
 
@@ -150,6 +153,8 @@ export function build({ cwd, configPath, outPath, full, scan = true, security: d
   // security scan (folded into the same HTML) unless disabled
   let securityResult = null;
   if (doSecurity) {
+    if (gitleaks) await ensureTool('gitleaks', { autoYes: installTools, prompt });
+    if (semgrep) await ensureTool('semgrep', { autoYes: installTools, prompt });
     console.log(`  Scanning for security signals…${semgrep ? ' (running Semgrep — may take a while)' : ''}`);
     securityResult = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
     process.stdout.write('\r' + ' '.repeat(30) + '\r');

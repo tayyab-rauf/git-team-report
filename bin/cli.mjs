@@ -43,6 +43,8 @@ Flags:
   --semgrep        also run Semgrep SAST (needs semgrep installed; slower)
   --lang <id>      force a language pack: typescript | java | flutter | generic
                    (default: auto-detected from the repo's dominant language)
+  --install-tools  auto-install missing gitleaks/semgrep (no prompt) then scan
+  --no-prompt      never prompt to install; just print the install hint
   --full           ignore the saved footprint; recompute from the period start
   --force          (init) overwrite an existing config
   -h, --help       show this help
@@ -57,12 +59,13 @@ try {
     console.log(HELP);
     process.exit(0);
   }
+  const common = { installTools: flag('--install-tools'), prompt: !flag('--no-prompt') };
   if (cmd === 'init') {
     init({ cwd, force: flag('--force') });
   } else if (cmd === 'build') {
-    build({ cwd, configPath: val('--config'), outPath: val('--out'), full: flag('--full'), scan: !flag('--no-scan'), security: !flag('--no-security'), gitleaks: !flag('--no-gitleaks'), semgrep: flag('--semgrep'), lang: val('--lang') });
+    await build({ cwd, configPath: val('--config'), outPath: val('--out'), full: flag('--full'), scan: !flag('--no-scan'), security: !flag('--no-security'), gitleaks: !flag('--no-gitleaks'), semgrep: flag('--semgrep'), lang: val('--lang'), ...common });
   } else if (cmd === 'security') {
-    security({ cwd, outPath: val('--out'), gitleaks: !flag('--no-gitleaks'), semgrep: flag('--semgrep'), lang: val('--lang') });
+    await security({ cwd, outPath: val('--out'), gitleaks: !flag('--no-gitleaks'), semgrep: flag('--semgrep'), lang: val('--lang'), ...common });
   } else {
     console.error(`Unknown command: ${cmd}\n`);
     console.log(HELP);
