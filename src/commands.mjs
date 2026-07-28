@@ -9,6 +9,7 @@ import {
   metricsFor, commitsSince, suggestGitGrade,
 } from './collect.mjs';
 import { scanCode, matrixFromScan, codeGradeFrom } from './scan.mjs';
+import { scanSecurity, securityMarkdown } from './security.mjs';
 import { renderReport } from './render.mjs';
 
 const CONFIG_NAME = 'git-team-report.config.json';
@@ -60,6 +61,29 @@ export function init({ cwd, force }) {
   console.log(`\n  Wrote ${CONFIG_NAME} with ${discovered.length} authors discovered from git history.`);
   console.log(`  Next: fill in grades / domains / findings, then run:  git-team-report build`);
   console.log(`  See the shipped config/config.example.json for a fully filled-in example.\n`);
+}
+
+export function security({ cwd, outPath }) {
+  const git = makeGit(cwd);
+  ensureRepo(git);
+  const repoName = repoNameOf(git, cwd);
+  const date = dataThroughDate(git);
+  console.log(`  Scanning for security signals…`);
+  const result = scanSecurity(git, cwd, { onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+  process.stdout.write('\r' + ' '.repeat(30) + '\r');
+  const md = securityMarkdown(result, { repoName, date });
+  const out = outPath ? resolve(outPath) : join(cwd, 'security-scan.md');
+  writeFileSync(out, md);
+
+  const all = Object.values(result.byVector).flat();
+  const c = { High: 0, Medium: 0, Low: 0 };
+  for (const f of all) c[f.severity]++;
+  console.log(`\n  Security scan → ${out}`);
+  console.log(`  ${result.files} files · ${all.length} signals · ${c.High} High · ${c.Medium} Medium · ${c.Low} Low\n`);
+  for (const [vector, hits] of Object.entries(result.byVector)) {
+    console.log(`    ${vector.padEnd(16)} ${hits.length ? hits.length + ' signal(s)' : 'No issues detected'}`);
+  }
+  console.log(`\n  Items marked (review) in the report need a human to confirm exploitability.\n`);
 }
 
 /** Build a zero-config config from git history alone (no config file present). */

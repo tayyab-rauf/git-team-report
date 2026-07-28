@@ -35,12 +35,35 @@ git-team-report build
 
 Open `git-team-report.html` in a browser, or publish/serve it however you like — it's one file with inline CSS, theme-aware (light/dark), responsive, no external assets.
 
+### Security signal scan
+
+```bash
+git-team-report security            # writes security-scan.md
+```
+
+Greps for signals of **six vulnerability vectors** and attributes each to a
+`file:line` with the snippet, a risk level, and a recommended fix:
+
+1. **ReDoS** — nested-quantifier regexes, dynamic `new RegExp`
+2. **Secrets** — hardcoded keys/tokens, private-key blocks, AWS IDs, non-public env vars reaching the client
+3. **Injection/XSS** — `bypassSecurityTrust*`, `innerHTML`/`v-html`/`dangerouslySetInnerHTML`, `eval`, NoSQL operators
+4. **LPDoS** — file inputs / `FileReader` without size bounds
+5. **Clipboard** — `navigator.clipboard` / paste handlers (pastejacking)
+6. **Replay** — sensitive `POST/PUT/DELETE` mutations lacking idempotency keys
+
+> These are **signals, not confirmed vulnerabilities.** Grep finds the sink; it can't
+> tell if the input is attacker-controlled, length-bounded, or sanitized downstream.
+> Findings that need that judgment are marked _(review)_. Vendored/minified files
+> (charting libs, bundles, `assets/`) are skipped to keep the report about *your* code.
+
 ### Commands & flags
 
 | | |
 |---|---|
 | `init` | Discover authors via `git shortlog` and write `git-team-report.config.json` |
-| `build` | Pull live metrics, render the HTML, print the delta, save the footprint |
+| `build` | Pull live metrics, auto-scan code quality, render the HTML, print the delta |
+| `security` | Scan the 6 vulnerability vectors → structured Markdown report |
+| `--no-scan` | (`build`) skip the code-quality blame scan (git stats only) |
 | `--cwd <path>` | Run against another repo (default: current dir) |
 | `--config <file>` | Config path (default: `./git-team-report.config.json`) |
 | `--out <file>` | Output HTML path (default: `./git-team-report.html`) |

@@ -13,7 +13,7 @@
  *   --force            (init) overwrite an existing config
  *   -h, --help         show this help
  */
-import { init, build } from '../src/commands.mjs';
+import { init, build, security } from '../src/commands.mjs';
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -24,11 +24,14 @@ const HELP = `git-team-report — graphical team git & code-quality report
 
 Usage:
   git-team-report init [--cwd <path>] [--force]
-  git-team-report build [--cwd <path>] [--config <file>] [--out <file>] [--full]
+  git-team-report build [--cwd <path>] [--config <file>] [--out <file>] [--full] [--no-scan]
+  git-team-report security [--cwd <path>] [--out <file>]
 
 Commands:
-  init    Discover authors from git history and write git-team-report.config.json
-  build   Pull live git metrics, render the HTML report, print what changed
+  init      Discover authors from git history and write git-team-report.config.json
+  build     Pull live git metrics, render the HTML report, print what changed
+  security  Scan for 6 vulnerability vectors (ReDoS, secrets, injection/XSS,
+            LPDoS, clipboard, replay) → structured Markdown report
 
 Flags:
   --cwd <path>     target repo (default: current directory)
@@ -53,6 +56,8 @@ try {
     init({ cwd, force: flag('--force') });
   } else if (cmd === 'build') {
     build({ cwd, configPath: val('--config'), outPath: val('--out'), full: flag('--full'), scan: !flag('--no-scan') });
+  } else if (cmd === 'security') {
+    security({ cwd, outPath: val('--out') });
   } else {
     console.error(`Unknown command: ${cmd}\n`);
     console.log(HELP);
