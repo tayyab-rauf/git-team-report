@@ -63,13 +63,13 @@ export function init({ cwd, force }) {
   console.log(`  See the shipped config/config.example.json for a fully filled-in example.\n`);
 }
 
-export function security({ cwd, outPath, gitleaks = true }) {
+export function security({ cwd, outPath, gitleaks = true, semgrep = false }) {
   const git = makeGit(cwd);
   ensureRepo(git);
   const repoName = repoNameOf(git, cwd);
   const date = dataThroughDate(git);
-  console.log(`  Scanning for security signals…`);
-  const result = scanSecurity(git, cwd, { gitleaks, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+  console.log(`  Scanning for security signals…${semgrep ? ' (running Semgrep — may take a while)' : ''}`);
+  const result = scanSecurity(git, cwd, { gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
   process.stdout.write('\r' + ' '.repeat(30) + '\r');
   const md = securityMarkdown(result, { repoName, date });
   const out = outPath ? resolve(outPath) : join(cwd, 'security-scan.md');
@@ -78,7 +78,7 @@ export function security({ cwd, outPath, gitleaks = true }) {
   const all = Object.values(result.byVector).flat();
   const c = { High: 0, Medium: 0, Low: 0 };
   for (const f of all) c[f.severity]++;
-  console.log(`\n  Security scan → ${out}   (secrets: ${result.secretsEngine})`);
+  console.log(`\n  Security scan → ${out}   (secrets: ${result.secretsEngine}${result.sastEngine ? ` · SAST: ${result.sastEngine}` : ''})`);
   console.log(`  ${result.files} files · ${all.length} signals · ${c.High} High · ${c.Medium} Medium · ${c.Low} Low\n`);
   for (const [vector, hits] of Object.entries(result.byVector)) {
     console.log(`    ${vector.padEnd(16)} ${hits.length ? hits.length + ' signal(s)' : 'No issues detected'}`);
@@ -102,7 +102,7 @@ function synthConfig(git) {
   };
 }
 
-export function build({ cwd, configPath, outPath, full, scan = true, security: doSecurity = true, gitleaks = true }) {
+export function build({ cwd, configPath, outPath, full, scan = true, security: doSecurity = true, gitleaks = true, semgrep = false }) {
   const git = makeGit(cwd);
   ensureRepo(git);
 
@@ -144,8 +144,8 @@ export function build({ cwd, configPath, outPath, full, scan = true, security: d
   // security scan (folded into the same HTML) unless disabled
   let securityResult = null;
   if (doSecurity) {
-    console.log(`  Scanning for security signals…`);
-    securityResult = scanSecurity(git, cwd, { gitleaks, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+    console.log(`  Scanning for security signals…${semgrep ? ' (running Semgrep — may take a while)' : ''}`);
+    securityResult = scanSecurity(git, cwd, { gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
     process.stdout.write('\r' + ' '.repeat(30) + '\r');
   }
 
@@ -181,7 +181,7 @@ export function build({ cwd, configPath, outPath, full, scan = true, security: d
     const all = Object.values(securityResult.byVector).flat();
     const c = { High: 0, Medium: 0, Low: 0 };
     for (const f of all) c[f.severity]++;
-    console.log(`  Security: ${all.length} signals (${c.High} High · ${c.Medium} Medium · ${c.Low} Low) — secrets via ${securityResult.secretsEngine}.`);
+    console.log(`  Security: ${all.length} signals (${c.High} High · ${c.Medium} Medium · ${c.Low} Low) — secrets via ${securityResult.secretsEngine}${securityResult.sastEngine ? ` · SAST via ${securityResult.sastEngine}` : ''}.`);
   }
   console.log(`  Grades marked * are auto-derived (git heuristic / blame scan) — set them in a config to override.`);
   console.log('');

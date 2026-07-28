@@ -65,6 +65,13 @@ Runs with `--redact`, so raw secrets never enter the report. No gitleaks install
 falls back to the built-in patterns (working tree only). Force the fallback with
 `--no-gitleaks`. The report states which engine ran.
 
+**Deeper SAST via [Semgrep](https://semgrep.dev) — opt-in.** Pass `--semgrep` and, if the
+`semgrep` binary is installed, its findings are mapped into the report's vectors
+(injection/XSS, ReDoS, …) with a catch-all **SAST (other)** group, each blame-attributed.
+Off by default because Semgrep is heavier and fetches rule packs on first run; set the
+rule set with `$GTR_SEMGREP_CONFIG` (default `p/security-audit`). Not installed → the
+flag is a graceful no-op and the built-in heuristics stand.
+
 ### Commands & flags
 
 | | |

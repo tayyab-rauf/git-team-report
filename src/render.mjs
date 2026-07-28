@@ -152,7 +152,8 @@ function securityHtml(sec) {
   const c = { High: 0, Medium: 0, Low: 0 };
   for (const f of all) c[f.severity]++;
 
-  const groups = SEC_VECTORS.map((v) => {
+  const vectors = [...SEC_VECTORS, ...Object.keys(sec.byVector).filter((v) => !SEC_VECTORS.includes(v))];
+  const groups = vectors.map((v) => {
     const hits = (sec.byVector[v] || []).slice().sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
     if (!hits.length) {
       return `<details class="secgroup"><summary><span class="sevchip clean">clean</span> ${v} <span class="cnt">No issues detected</span></summary></details>`;
@@ -176,7 +177,7 @@ function securityHtml(sec) {
   <hr class="divider">
   <section id="security">
     <h3>Security signal scan</h3>
-    <p class="sub">Scanned ${sec.files} files · <b>${all.length}</b> signals. <b>Signals, not confirmed vulnerabilities</b> — items marked <em>(needs review)</em> need a human to confirm exploitability. Each line is attributed via <code>git blame</code>; vendored/minified code is skipped.${sec.secretsEngine ? ` Secrets engine: <b>${esc(sec.secretsEngine)}</b>.` : ''}</p>
+    <p class="sub">Scanned ${sec.files} files · <b>${all.length}</b> signals. <b>Signals, not confirmed vulnerabilities</b> — items marked <em>(needs review)</em> need a human to confirm exploitability. Each line is attributed via <code>git blame</code>; vendored/minified code is skipped.${sec.secretsEngine ? ` Secrets engine: <b>${esc(sec.secretsEngine)}</b>.` : ''}${sec.sastEngine ? ` SAST: <b>${esc(sec.sastEngine)}</b>.` : ''}</p>
     <div class="secsum"><span class="chip crit"><b>${c.High}</b> High</span><span class="chip hi"><b>${c.Medium}</b> Medium</span><span class="chip"><b>${c.Low}</b> Low</span><span class="chip"><b>${sec.files}</b> files</span></div>
       ${groups}
   </section>`;

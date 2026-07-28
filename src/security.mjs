@@ -11,6 +11,7 @@ import { readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
+import { runSemgrep } from './semgrep.mjs';
 
 const GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.html', '*.vue'];
 // Exclude tests, type decls, build output, and — critically — vendored/generated
@@ -100,7 +101,7 @@ function blameAuthors(git, file) {
  * Scan tracked files. Returns findings grouped by vector:
  *   { byVector: { ReDoS: [ {file,line,severity,snippet,fix,review,id} ], ... }, files }
  */
-export function scanSecurity(git, cwd, { rules = SECURITY_RULES, onProgress, gitleaks = true } = {}) {
+export function scanSecurity(git, cwd, { rules = SECURITY_RULES, onProgress, gitleaks = true, semgrep = false } = {}) {
   const listed = git(`ls-files -- ${GLOBS.map((g) => `"${g}"`).join(' ')}`)
     .split('\n').filter(Boolean).filter((f) => !EXCLUDE.test(f));
 
@@ -139,7 +140,17 @@ export function scanSecurity(git, cwd, { rules = SECURITY_RULES, onProgress, git
     if (gl) { byVector['Secrets'] = gl.findings; secretsEngine = `gitleaks ${gl.version} (full git history)`; }
   }
 
-  return { byVector, files: listed.length, secretsEngine };
+  // SAST vectors: augment with Semgrep when opted in and installed.
+  let sastEngine = null;
+  if (semgrep) {
+    const sg = runSemgrep(git, cwd);
+    if (sg) {
+      for (const f of sg.findings) (byVector[f.vector] ??= []).push(f);
+      sastEngine = `semgrep ${sg.version}`;
+    }
+  }
+
+  return { byVector, files: listed.length, secretsEngine, sastEngine };
 }
 
 /**
@@ -195,9 +206,11 @@ export function securityMarkdown(result, { repoName, date }) {
   md += `> ${date} · scanned ${result.files} files · **${total}** candidate signals `;
   md += `(${counts.High} High · ${counts.Medium} Medium · ${counts.Low} Low)\n\n`;
   md += `> ⚠️ Signals, not confirmed vulnerabilities. Items marked _(review)_ need a human to confirm exploitability (user-controlled input? bound present? sanitized downstream?).\n`;
-  md += `> Secrets engine: **${result.secretsEngine || 'built-in patterns'}**.\n\n`;
+  md += `> Secrets engine: **${result.secretsEngine || 'built-in patterns'}**`;
+  md += result.sastEngine ? ` · SAST: **${result.sastEngine}**.\n\n` : `.\n\n`;
 
-  for (const vector of VECTORS) {
+  const vectors = [...VECTORS, ...Object.keys(result.byVector).filter((v) => !VECTORS.includes(v))];
+  for (const vector of vectors) {
     const hits = (result.byVector[vector] || []).sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
     md += `## ${vector}\n\n`;
     if (!hits.length) { md += `No issues detected.\n\n`; continue; }
