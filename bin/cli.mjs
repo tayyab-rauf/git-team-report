@@ -34,6 +34,7 @@ Flags:
   --cwd <path>     target repo (default: current directory)
   --config <file>  config path (default: ./git-team-report.config.json)
   --out <file>     output HTML (default: ./git-team-report.html)
+  --no-scan        skip the code-quality blame scan (git stats only, faster)
   --full           ignore the saved footprint; recompute from the period start
   --force          (init) overwrite an existing config
   -h, --help       show this help
@@ -51,7 +52,7 @@ try {
   if (cmd === 'init') {
     init({ cwd, force: flag('--force') });
   } else if (cmd === 'build') {
-    build({ cwd, configPath: val('--config'), outPath: val('--out'), full: flag('--full') });
+    build({ cwd, configPath: val('--config'), outPath: val('--out'), full: flag('--full'), scan: !flag('--no-scan') });
   } else {
     console.error(`Unknown command: ${cmd}\n`);
     console.log(HELP);

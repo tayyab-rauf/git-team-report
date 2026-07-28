@@ -2,7 +2,7 @@
 
 Generate a graphical **team git & code-quality report** from any git repository — as a single self-contained HTML page.
 
-The trick that keeps it cheap to maintain: **numbers are pulled live from git on every build** (commits, lines, conventional-commit %, ticket links, monthly cadence, last-active), while **grades and code findings live in a config file you edit**. Each build also prints only the **delta since the last build**, so refreshing is a glance, not a re-analysis.
+**Works with zero config.** Point it at any repo and it auto-discovers authors, pulls live git stats, and **scans the code for quality issues** (`any` types, `console.*`, bare subscriptions, unguarded DOM, TODO/FIXME, non-null assertions, oversized files) — attributing each hit to an author with `git blame`. It even derives first-pass **grades**. A config is *optional*: add one only to override grades or add hand-written findings, ship-blockers, and prose. Each build prints only the **delta since the last build**, so refreshing is a glance, not a re-analysis.
 
 ![sections: overview cards · commit bars · activity heatmap · issue matrix · ship-blockers · per-member detail · action plan](examples/report.html)
 

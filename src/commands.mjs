@@ -8,6 +8,7 @@ import {
   makeGit, dataThroughDate, firstCommitDate, discoverAuthors,
   metricsFor, commitsSince, suggestGitGrade,
 } from './collect.mjs';
+import { scanCode, matrixFromScan, codeGradeFrom } from './scan.mjs';
 import { renderReport } from './render.mjs';
 
 const CONFIG_NAME = 'git-team-report.config.json';
@@ -61,15 +62,30 @@ export function init({ cwd, force }) {
   console.log(`  See the shipped config/config.example.json for a fully filled-in example.\n`);
 }
 
-export function build({ cwd, configPath, outPath, full }) {
+/** Build a zero-config config from git history alone (no config file present). */
+function synthConfig(git) {
+  return {
+    meta: {
+      sidebarTitle: 'Team Quality Report',
+      heading: 'Team Git & Code Quality Report',
+      callout: 'Zero-config report — authors, git stats, and the code-issue matrix are all derived live from the repo. Add a <code>git-team-report.config.json</code> to set grades, findings, and ship-blockers by hand.',
+    },
+    period: { start: firstCommitDate(git) },
+    authors: discoverAuthors(git).map((a) => ({
+      email: a.email, name: a.name, short: a.name.split(' ')[0], domain: '', gitGrade: '', codeGrade: '',
+    })),
+    issueMatrix: null, members: {}, actions: [],
+  };
+}
+
+export function build({ cwd, configPath, outPath, full, scan = true }) {
   const git = makeGit(cwd);
   ensureRepo(git);
 
   const cfgFile = configPath ? resolve(configPath) : join(cwd, CONFIG_NAME);
-  if (!existsSync(cfgFile)) {
-    throw new Error(`Config not found: ${cfgFile}\n  Run "git-team-report init" first, or pass --config <file>.`);
-  }
-  const config = readJson(cfgFile);
+  const hasConfig = existsSync(cfgFile);
+  const config = hasConfig ? readJson(cfgFile) : synthConfig(git);
+  if (!hasConfig) console.log(`\n  No config found — running zero-config (authors + issue matrix auto-derived).`);
   const repoName = repoNameOf(git, cwd);
   const throughDate = dataThroughDate(git);
 
@@ -77,9 +93,29 @@ export function build({ cwd, configPath, outPath, full }) {
   const prev = !full && existsSync(stateFile) ? readJson(stateFile) : null;
   const lastDate = prev?.compiledDate || config.period?.start || firstCommitDate(git);
 
-  // collect
+  // collect git metrics
   const metrics = new Map();
   for (const a of config.authors) metrics.set(a.email, metricsFor(git, a.email));
+
+  // auto code-quality scan (blame-attributed) unless disabled
+  let scanResult = null;
+  if (scan) {
+    console.log(`  Scanning source for code smells (git blame attribution)…`);
+    scanResult = scanCode(git, cwd, { onProgress: (n, t) => process.stdout.write(`\r    blamed ${n}/${t} files`) });
+    process.stdout.write('\r' + ' '.repeat(40) + '\r');
+  }
+
+  // fill grades/matrix that the config didn't specify; remember which were auto
+  const cardAuthors = config.authors.filter((a) => !a.hideFromCards && metrics.get(a.email).commits > 0);
+  const autoGrade = {};
+  for (const a of config.authors) {
+    autoGrade[a.email] = { git: !a.gitGrade, code: !a.codeGrade && !!scanResult };
+    if (!a.gitGrade) a.gitGrade = suggestGitGrade(metrics.get(a.email));
+    if (!a.codeGrade && scanResult) a.codeGrade = codeGradeFrom(scanResult.byEmail[a.email]).grade;
+  }
+  if (scanResult && (!config.issueMatrix || !config.issueMatrix.rows?.length)) {
+    config.issueMatrix = matrixFromScan(scanResult, cardAuthors);
+  }
 
   // render
   const html = renderReport(config, metrics, { repoName, throughDate });
@@ -102,14 +138,13 @@ export function build({ cwd, configPath, outPath, full }) {
     commits: m.commits,
     since: commitsSince(git, a.email, lastDate),
     vsSnap: prev?.snapshot?.[a.email]?.commits != null ? m.commits - prev.snapshot[a.email].commits : null,
-    gradeHint: a.gitGrade ? null : suggestGitGrade(m),
+    grades: `${a.gitGrade}${autoGrade[a.email]?.git ? '*' : ''}/${a.codeGrade || '—'}${autoGrade[a.email]?.code ? '*' : ''}`,
   })).sort((x, y) => y.since - x.since);
   for (const r of rows) {
     const vs = r.vsSnap != null ? `  (+${r.vsSnap} vs last build)` : '';
-    const hint = r.gradeHint ? `   [git-grade hint: ${r.gradeHint}]` : '';
-    console.log(`    ${r.name.padEnd(20)} ${String(r.commits).padStart(5)} total   ${r.since > 0 ? '+' + r.since + ' new' : 'no new'}${vs}${hint}`);
+    console.log(`    ${r.name.padEnd(20)} ${String(r.commits).padStart(5)} total   ${(r.since > 0 ? '+' + r.since + ' new' : 'no new').padEnd(10)}  Git/Code ${r.grades}${vs}`);
   }
-  const blanks = config.authors.filter((a) => metrics.get(a.email).commits > 0 && (!a.gitGrade || !a.codeGrade));
-  if (blanks.length) console.log(`\n  ${blanks.length} author(s) still missing a grade in ${basename(cfgFile)} — see the git-grade hints above.`);
+  if (scanResult) console.log(`\n  Scanned ${scanResult.files} source files · ${scanResult.largeFiles} over 200 lines.`);
+  console.log(`  Grades marked * are auto-derived (git heuristic / blame scan) — set them in a config to override.`);
   console.log('');
 }
