@@ -57,6 +57,14 @@ wrote the line** (via `git blame`) plus an owner tally per group:
 > Findings that need that judgment are marked _(review)_. Vendored/minified files
 > (charting libs, bundles, `assets/`) are skipped to keep the report about *your* code.
 
+**Secrets use [gitleaks](https://github.com/gitleaks/gitleaks) when available.** If the
+`gitleaks` binary is on `PATH`, the Secrets vector is delegated to it automatically —
+150+ curated rules, entropy detection, and a scan of the **full git history** (catches
+secrets in old commits, not just the working tree), with the introducing commit's author.
+Runs with `--redact`, so raw secrets never enter the report. No gitleaks installed →
+falls back to the built-in patterns (working tree only). Force the fallback with
+`--no-gitleaks`. The report states which engine ran.
+
 ### Commands & flags
 
 | | |

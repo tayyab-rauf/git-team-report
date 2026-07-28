@@ -39,6 +39,7 @@ Flags:
   --out <file>     output HTML (default: ./git-team-report.html)
   --no-scan        skip the code-quality blame scan (git stats only, faster)
   --no-security    skip the security scan section in the HTML report
+  --no-gitleaks    force built-in secret patterns even if gitleaks is installed
   --full           ignore the saved footprint; recompute from the period start
   --force          (init) overwrite an existing config
   -h, --help       show this help
@@ -56,9 +57,9 @@ try {
   if (cmd === 'init') {
     init({ cwd, force: flag('--force') });
   } else if (cmd === 'build') {
-    build({ cwd, configPath: val('--config'), outPath: val('--out'), full: flag('--full'), scan: !flag('--no-scan'), security: !flag('--no-security') });
+    build({ cwd, configPath: val('--config'), outPath: val('--out'), full: flag('--full'), scan: !flag('--no-scan'), security: !flag('--no-security'), gitleaks: !flag('--no-gitleaks') });
   } else if (cmd === 'security') {
-    security({ cwd, outPath: val('--out') });
+    security({ cwd, outPath: val('--out'), gitleaks: !flag('--no-gitleaks') });
   } else {
     console.error(`Unknown command: ${cmd}\n`);
     console.log(HELP);

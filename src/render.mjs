@@ -176,7 +176,7 @@ function securityHtml(sec) {
   <hr class="divider">
   <section id="security">
     <h3>Security signal scan</h3>
-    <p class="sub">Scanned ${sec.files} files · <b>${all.length}</b> signals. <b>Signals, not confirmed vulnerabilities</b> — items marked <em>(needs review)</em> need a human to confirm exploitability. Each line is attributed via <code>git blame</code>; vendored/minified code is skipped.</p>
+    <p class="sub">Scanned ${sec.files} files · <b>${all.length}</b> signals. <b>Signals, not confirmed vulnerabilities</b> — items marked <em>(needs review)</em> need a human to confirm exploitability. Each line is attributed via <code>git blame</code>; vendored/minified code is skipped.${sec.secretsEngine ? ` Secrets engine: <b>${esc(sec.secretsEngine)}</b>.` : ''}</p>
     <div class="secsum"><span class="chip crit"><b>${c.High}</b> High</span><span class="chip hi"><b>${c.Medium}</b> Medium</span><span class="chip"><b>${c.Low}</b> Low</span><span class="chip"><b>${sec.files}</b> files</span></div>
       ${groups}
   </section>`;

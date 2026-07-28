@@ -7,8 +7,10 @@
  * elsewhere, or whether pasted text is sanitized downstream. Rules carry a
  * `review` flag when a human must confirm. Treat High/Medium as "look here first".
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execSync } from 'node:child_process';
 
 const GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.html', '*.vue'];
 // Exclude tests, type decls, build output, and — critically — vendored/generated
@@ -98,7 +100,7 @@ function blameAuthors(git, file) {
  * Scan tracked files. Returns findings grouped by vector:
  *   { byVector: { ReDoS: [ {file,line,severity,snippet,fix,review,id} ], ... }, files }
  */
-export function scanSecurity(git, cwd, { rules = SECURITY_RULES, onProgress } = {}) {
+export function scanSecurity(git, cwd, { rules = SECURITY_RULES, onProgress, gitleaks = true } = {}) {
   const listed = git(`ls-files -- ${GLOBS.map((g) => `"${g}"`).join(' ')}`)
     .split('\n').filter(Boolean).filter((f) => !EXCLUDE.test(f));
 
@@ -129,7 +131,55 @@ export function scanSecurity(git, cwd, { rules = SECURITY_RULES, onProgress } = 
     scanned++;
     if (onProgress && scanned % 100 === 0) onProgress(scanned, listed.length);
   }
-  return { byVector, files: listed.length };
+
+  // Secrets: prefer gitleaks (history-aware, richer rules) when available.
+  let secretsEngine = 'built-in patterns (working tree only)';
+  if (gitleaks) {
+    const gl = runGitleaks(cwd);
+    if (gl) { byVector['Secrets'] = gl.findings; secretsEngine = `gitleaks ${gl.version} (full git history)`; }
+  }
+
+  return { byVector, files: listed.length, secretsEngine };
+}
+
+/**
+ * Optional gitleaks integration for the Secrets vector. gitleaks is a dedicated
+ * secrets scanner with 150+ rules + entropy detection that scans the FULL git
+ * history (not just the working tree) and reports the introducing commit's author.
+ * If the binary is present we use it; otherwise we fall back to the regex rules
+ * above. We run with --redact so raw secrets never touch the report.
+ */
+function gitleaksVersion(cwd) {
+  try { return execSync('gitleaks version', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
+  catch { return null; }
+}
+
+function runGitleaks(cwd) {
+  const version = gitleaksVersion(cwd);
+  if (!version) return null;
+  const tmp = join(tmpdir(), `gtr-gitleaks-${process.pid}.json`);
+  // `detect` (classic) and `git` (newer CLI) both scan history; try in order.
+  const variants = [
+    `gitleaks detect --source "${cwd}" --report-format json --report-path "${tmp}" --redact --exit-code 0 --no-banner`,
+    `gitleaks git "${cwd}" --report-format json --report-path "${tmp}" --redact --exit-code 0 --no-banner`,
+  ];
+  for (const cmd of variants) {
+    try {
+      execSync(cmd, { cwd, stdio: 'ignore', maxBuffer: 64 * 1024 * 1024 });
+      if (!existsSync(tmp)) continue;
+      const raw = readFileSync(tmp, 'utf8').trim();
+      rmSync(tmp, { force: true });
+      const data = raw ? JSON.parse(raw) : [];
+      const findings = (Array.isArray(data) ? data : []).map((f) => ({
+        id: `gitleaks:${f.RuleID || 'secret'}`, file: f.File, line: f.StartLine || 0, severity: 'High',
+        snippet: `${f.RuleID || 'secret'} — ${(f.Description || 'potential secret')}`.slice(0, 160),
+        fix: 'Rotate the exposed credential immediately and purge it from git history (git filter-repo / BFG); load secrets from env/secret manager. (gitleaks scans full history — this may be in an old commit, not the current file.)',
+        review: true, author: f.Author || 'unknown', authorEmail: f.Email || '',
+      }));
+      return { version, findings };
+    } catch { try { rmSync(tmp, { force: true }); } catch {} }
+  }
+  return null;
 }
 
 const VECTORS = ['ReDoS', 'Secrets', 'Injection/XSS', 'LPDoS', 'Clipboard', 'Replay'];
@@ -144,7 +194,8 @@ export function securityMarkdown(result, { repoName, date }) {
   let md = `# Security Signal Scan — ${repoName}\n\n`;
   md += `> ${date} · scanned ${result.files} files · **${total}** candidate signals `;
   md += `(${counts.High} High · ${counts.Medium} Medium · ${counts.Low} Low)\n\n`;
-  md += `> ⚠️ Signals, not confirmed vulnerabilities. Items marked _(review)_ need a human to confirm exploitability (user-controlled input? bound present? sanitized downstream?).\n\n`;
+  md += `> ⚠️ Signals, not confirmed vulnerabilities. Items marked _(review)_ need a human to confirm exploitability (user-controlled input? bound present? sanitized downstream?).\n`;
+  md += `> Secrets engine: **${result.secretsEngine || 'built-in patterns'}**.\n\n`;
 
   for (const vector of VECTORS) {
     const hits = (result.byVector[vector] || []).sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
