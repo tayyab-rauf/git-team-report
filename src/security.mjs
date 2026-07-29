@@ -184,12 +184,19 @@ function runGitleaks(cwd) {
       const raw = readFileSync(tmp, 'utf8').trim();
       rmSync(tmp, { force: true });
       const data = raw ? JSON.parse(raw) : [];
-      const findings = (Array.isArray(data) ? data : []).map((f) => ({
-        id: `gitleaks:${f.RuleID || 'secret'}`, file: f.File, line: f.StartLine || 0, severity: 'High',
-        snippet: `${f.RuleID || 'secret'} — ${(f.Description || 'potential secret')}`.slice(0, 160),
-        fix: 'Rotate the exposed credential immediately and purge it from git history (git filter-repo / BFG); load secrets from env/secret manager. (gitleaks scans full history — this may be in an old commit, not the current file.)',
-        review: true, author: f.Author || 'unknown', authorEmail: f.Email || '', source: 'gitleaks',
-      }));
+      const seen = new Set();
+      const findings = [];
+      for (const f of Array.isArray(data) ? data : []) {
+        const key = `${f.RuleID || 'secret'}:${f.File}:${f.StartLine || 0}:${f.Secret || f.Match || f.Description || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        findings.push({
+          id: `gitleaks:${f.RuleID || 'secret'}`, file: f.File, line: f.StartLine || 0, severity: 'High',
+          snippet: `${f.RuleID || 'secret'} — ${(f.Description || 'potential secret')}`.slice(0, 160),
+          fix: 'Rotate the exposed credential immediately and purge it from git history (git filter-repo / BFG); load secrets from env/secret manager. (gitleaks scans full history — this may be in an old commit, not the current file.)',
+          review: true, author: f.Author || 'unknown', authorEmail: f.Email || '', source: 'gitleaks',
+        });
+      }
       return { version, findings };
     } catch { try { rmSync(tmp, { force: true }); } catch {} }
   }

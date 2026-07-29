@@ -22,12 +22,17 @@ function installPlan(tool) {
     gitleaks: [
       ['brew', 'brew install gitleaks'],
       ['go', 'go install github.com/gitleaks/gitleaks/v8@latest'],
+      ['winget', 'winget install gitleaks'],
+      ['choco', 'choco install gitleaks'],
+      ['scoop', 'scoop install gitleaks'],
     ],
     semgrep: [
       ['pipx', 'pipx install semgrep'],
       ['brew', 'brew install semgrep'],
       ['pip3', 'pip3 install --user semgrep'],
       ['pip', 'pip install --user semgrep'],
+      ['winget', 'winget install Semgrep.Semgrep'],
+      ['choco', 'choco install semgrep'],
     ],
   }[tool] || [];
   for (const [mgr, cmd] of plans) if (hasTool(mgr)) return { mgr, cmd };
@@ -48,10 +53,10 @@ function askYesNo(question) {
 export async function ensureTool(tool, { autoYes = false, prompt = true } = {}) {
   if (hasTool(tool)) return true;
   const plan = installPlan(tool);
-  const interactive = !!process.stdin.isTTY;
+  const interactive = !!(process.stdin.isTTY || process.stdout.isTTY || process.env.TERM);
 
   if (!plan) {
-    console.log(`  ${tool} isn't installed and no supported installer (brew/pipx/pip/go) was found — install it manually for a stronger scan.`);
+    console.log(`  ${tool} isn't installed and no supported installer (brew/pipx/pip/go/winget/choco/scoop) was found — install it manually for a stronger scan.`);
     return false;
   }
   if (!autoYes) {

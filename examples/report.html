@@ -1,4 +1,4 @@
-<title>Team Git &amp; Code Quality Report — newwebinfo</title>
+<title>Team Git &amp; Code Quality Report — git-team-report</title>
 <style>
 :root{
   --bg:#FFFFFF; --surface:#F6F8FA; --surface-2:#EAEEF2; --border:#D0D7DE;
@@ -110,19 +110,42 @@ table.acts-t td,table.acts-t th{padding:9px 12px;text-align:left;border-bottom:1
 table.acts-t td:first-child{width:34px;color:var(--muted);font-variant-numeric:tabular-nums}
 .owner{font-size:11px;color:var(--muted);white-space:nowrap}
 footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color:var(--muted);font-size:12px}
+.secsum{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.chip{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-variant-numeric:tabular-nums}
+.chip b{color:var(--text)} .chip.hi{color:var(--high);border-color:color-mix(in srgb,var(--high) 40%,transparent)}
+.chip.crit{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,transparent)}
+.secgroup{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin-bottom:10px;overflow:hidden}
+.secgroup>summary{cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:10px;font-weight:600;list-style:none}
+.secgroup>summary::-webkit-details-marker{display:none}
+.secgroup>summary .cnt{margin-left:auto;color:var(--muted);font-weight:400;font-size:12px}
+.sevchip{font-size:11px;font-weight:700;color:#fff;padding:2px 8px;border-radius:5px}
+.sevchip.High{background:var(--high)} .sevchip.Medium{background:var(--warn)} .sevchip.Low{background:var(--muted)} .sevchip.clean{background:var(--ok)}
+.sec-body{padding:4px 16px 14px;border-top:1px solid var(--border)}
+.sec-item{padding:10px 0;border-bottom:1px dashed var(--border)} .sec-item:last-child{border-bottom:0}
+.sec-item .loc{font-family:var(--mono);font-size:12px;color:var(--accent);word-break:break-all}
+.sec-item .who{font-size:11px;color:var(--muted);margin-left:6px}
+.sec-item pre{margin:6px 0 0;background:var(--surface-2);border-radius:5px;padding:8px 10px;overflow-x:auto;font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-word}
+.secfix{margin-top:10px;font-size:12px;color:var(--muted)} .secfix b{color:var(--text)}
+.tabbar{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:16px}
+.tab-btn{padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;background:none;border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;margin-bottom:-1px;font-family:inherit}
+.tab-btn:hover{color:var(--text);background:var(--surface)}
+.tab-btn.active{color:var(--text);border-color:var(--border);background:var(--bg);border-bottom:1px solid var(--bg)}
+.tab-btn .n{font-weight:400;opacity:.7;margin-left:4px}
+.tabpanel{display:none} .tabpanel.active{display:block}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 </style>
 <div class="wrap">
 <nav class="sidebar">
   <h1>Team Quality Report</h1>
-  <div class="repo">newwebinfo · all branches</div>
+  <div class="repo">git-team-report · all branches</div>
   <nav>
     <div class="navlbl">Summary</div>
     <a href="#overview">Team overview</a>
     <a href="#activity">Activity cadence</a>
     <a href="#issues">Issue matrix</a>
     <a href="#blockers">Ship-blockers</a>
+    <a href="#security">Security scan</a>
     <div class="navlbl">Members</div>
     <a href="#m-tayyab-rauf">Tayyab Rauf</a>
     <div class="navlbl">Plan</div>
@@ -133,9 +156,9 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color
   <header class="page-head">
     <h2>Team Git &amp; Code Quality Report</h2>
     <div class="meta">
-      <span><b>Compiled</b> 2026-07-28</span>
-      <span><b>Period</b> 2026-05-11 → 2026-07-28</span>
-      <span><b>Scope</b> all branches · 935 commits</span>
+      <span><b>Compiled</b> 2026-07-29</span>
+      <span><b>Period</b> 2026-05-11 → 2026-07-29</span>
+      <span><b>Scope</b> all branches · 14 commits</span>
     </div>
     <div class="callout">Git numbers are pulled live by <code>git-team-report</code>; grades &amp; code findings come from the config file. Ship-blockers were verified against HEAD. To refresh: rerun <code>git-team-report build</code>.</div>
   </header>
@@ -144,52 +167,17 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color
     <h3>Team overview</h3>
     <p class="sub">Grades, pull stats, and ticket hygiene — ranked by commit volume across all branches.</p>
     <div class="cards">
-      <div class="mcard">
-        <div class="top"><div><div class="name">Yasir Alam</div><div class="email">y.alam@</div></div>
-          <div class="grades"><span class="pill g-b"><span class="k">Git</span>B</span><span class="pill g-b"><span class="k">Code</span>B</span></div></div>
-        <div class="statline"><span><b>352</b> commits</span><span><b>+40.6k</b>/<b>−47.5k</b></span><span><b>47%</b> conv</span><span><b>91</b> MI</span></div>
-        <div class="domain">layout · features · shared · bff — widest surface, active cleanup</div>
-      </div>
-      <div class="mcard">
-        <div class="top"><div><div class="name">Arslan Ahmad</div><div class="email">arslan.ahmad@</div></div>
-          <div class="grades"><span class="pill g-b"><span class="k">Git</span>B</span><span class="pill g-c"><span class="k">Code</span>C+</span></div></div>
-        <div class="statline"><span><b>232</b> commits</span><span><b>+52.1k</b>/<b>−60.2k</b></span><span><b>0%</b> conv</span><span><b>76</b> MI</span></div>
-        <div class="domain">shared-auth · market-talks · BFF auth</div>
-      </div>
-      <div class="mcard">
-        <div class="top"><div><div class="name">M. Younas</div><div class="email">m.younas@</div></div>
-          <div class="grades"><span class="pill g-b"><span class="k">Git</span>B-</span><span class="pill g-c"><span class="k">Code</span>C</span></div></div>
-        <div class="statline"><span><b>196</b> commits</span><span><b>+29.2k</b>/<b>−12.9k</b></span><span><b>0%</b> conv</span><span><b>139</b> MI</span><span class="tick">✓ own account</span></div>
-        <div class="domain">post-card · dialogs · feed · post/opinion creators</div>
-      </div>
       <div class="mcard" style="border-color:color-mix(in srgb,var(--a) 40%,var(--border))">
         <div class="top"><div><div class="name">Tayyab Rauf</div><div class="email">t.rauf@</div></div>
           <div class="grades"><span class="pill g-c"><span class="k">Git</span>C+</span><span class="pill g-a"><span class="k">Code</span>A-</span></div></div>
-        <div class="statline"><span><b>131</b> commits</span><span><b>+124.2k</b>/<b>−15.8k</b></span><span><b>5%</b> conv</span><span><b>16</b> MI</span><span class="up">▲ D→A-</span></div>
+        <div class="statline"><span><b>14</b> commits</span><span><b>+2.4k</b>/<b>−109</b></span><span><b>100%</b> conv</span><span><b>0</b> MI</span><span class="up">▲ D→A-</span></div>
         <div class="domain">MFE scaffold · shared-auth setup · research-reports · funds</div>
-      </div>
-      <div class="mcard">
-        <div class="top"><div><div class="name">Noor Muhammad</div><div class="email">n.muhammad@</div></div>
-          <div class="grades"><span class="pill g-c"><span class="k">Git</span>C+</span><span class="pill g-a"><span class="k">Code</span>A</span></div></div>
-        <div class="statline"><span><b>16</b> commits</span><span><b>+115.3k</b>/<b>−32.2k</b></span><span><b>6%</b> conv</span><span><b>0</b> MI</span><span class="" style="color:var(--warn)">stalled 2026-06-12</span></div>
-        <div class="domain">Bootstrap→Tailwind migration · community — team code benchmark</div>
-      </div>
-      <div class="mcard">
-        <div class="top"><div><div class="name">S. Ahmed</div><div class="email">s.ahmed@</div></div>
-          <div class="grades"><span class="pill g-c"><span class="k">Git</span>C</span><span class="pill g-a"><span class="k">Code</span>A-</span></div></div>
-        <div class="statline"><span><b>8</b> commits</span><span><b>+36</b>/<b>−10</b></span><span><b>0%</b> conv</span><span><b>2</b> MI</span><span class="tick">✓ own account</span></div>
-        <div class="domain">loginform · bff/middleware/security</div>
       </div>
     </div>
     <div class="panel" style="margin-top:20px">
       <h4 style="margin:0 0 14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Commits by author · all branches</h4>
       <div class="bars">
-        <div class="bar-row"><span class="who">Yasir</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-val">352</span></div>
-        <div class="bar-row"><span class="who">Arslan</span><div class="bar-track"><div class="bar-fill" style="width:65.9%"></div></div><span class="bar-val">232</span></div>
-        <div class="bar-row"><span class="who">M. Younas</span><div class="bar-track"><div class="bar-fill" style="width:55.7%"></div></div><span class="bar-val">196</span></div>
-        <div class="bar-row"><span class="who">Tayyab</span><div class="bar-track"><div class="bar-fill" style="width:37.2%"></div></div><span class="bar-val">131</span></div>
-        <div class="bar-row"><span class="who">Noor</span><div class="bar-track"><div class="bar-fill" style="width:4.5%"></div></div><span class="bar-val">16</span></div>
-        <div class="bar-row"><span class="who">S. Ahmed</span><div class="bar-track"><div class="bar-fill" style="width:2.3%"></div></div><span class="bar-val">8</span></div>
+        <div class="bar-row"><span class="who">Tayyab</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-val">14</span></div>
       </div>
     </div>
   </section>
@@ -201,14 +189,9 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color
     <p class="sub">Commits per month across the team's active window.</p>
     <div class="panel matrix">
       <table class="heat-table">
-        <thead><tr><th></th><th>May</th><th>Jun</th><th>Jul</th><th style="padding-left:12px">Last active</th></tr></thead>
+        <thead><tr><th></th><th>Jul</th><th style="padding-left:12px">Last active</th></tr></thead>
         <tbody>
-          <tr><td class="who">Yasir Alam</td><td class="heat-cell" style="background:rgba(var(--heat),0.17)">6</td><td class="heat-cell" style="background:rgba(var(--heat),0.74)">142</td><td class="heat-cell" style="background:rgba(var(--heat),1.00)">204</td><td style="padding-left:12px"><span style="color:var(--ok)">2026-07-27 ●</span></td></tr>
-          <tr><td class="who">Arslan Ahmad</td><td class="heat-cell" style="background:rgba(var(--heat),0.17)">6</td><td class="heat-cell" style="background:rgba(var(--heat),0.61)">111</td><td class="heat-cell" style="background:rgba(var(--heat),0.63)">115</td><td style="padding-left:12px"><span style="color:var(--ok)">2026-07-28 ●</span></td></tr>
-          <tr><td class="who">M. Younas</td><td class="heat-cell zero">—</td><td class="heat-cell" style="background:rgba(var(--heat),0.25)">24</td><td class="heat-cell" style="background:rgba(var(--heat),0.87)">172</td><td style="padding-left:12px"><span style="color:var(--ok)">2026-07-28 ●</span></td></tr>
-          <tr><td class="who">Tayyab Rauf</td><td class="heat-cell" style="background:rgba(var(--heat),0.20)">11</td><td class="heat-cell" style="background:rgba(var(--heat),0.21)">15</td><td class="heat-cell" style="background:rgba(var(--heat),0.59)">105</td><td style="padding-left:12px"><span style="color:var(--ok)">2026-07-27 ●</span></td></tr>
-          <tr><td class="who">Noor Muhammad</td><td class="heat-cell" style="background:rgba(var(--heat),0.18)">8</td><td class="heat-cell" style="background:rgba(var(--heat),0.18)">8</td><td class="heat-cell zero">—</td><td style="padding-left:12px"><span style="color:var(--warn)">2026-06-12 ○</span></td></tr>
-          <tr><td class="who">S. Ahmed</td><td class="heat-cell zero">—</td><td class="heat-cell zero">—</td><td class="heat-cell" style="background:rgba(var(--heat),0.18)">8</td><td style="padding-left:12px"><span style="color:var(--warn)">2026-07-01 ○</span></td></tr>
+          <tr><td class="who">Tayyab Rauf</td><td class="heat-cell" style="background:rgba(var(--heat),1.00)">14</td><td style="padding-left:12px"><span style="color:var(--ok)">2026-07-29 ●</span></td></tr>
         </tbody>
       </table>
       <div class="legend"><span>fewer</span><span class="sw" style="background:rgba(var(--heat),.19)"></span><span class="sw" style="background:rgba(var(--heat),.5)"></span><span class="sw" style="background:rgba(var(--heat),.8)"></span><span class="sw" style="background:rgba(var(--heat),1)"></span><span>more commits</span></div>
@@ -249,11 +232,45 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color
     </div>
   </section>
   <hr class="divider">
+  <section id="security">
+    <h3>Security signal scan</h3>
+    <p class="sub">Scanned 0 files · <b>0</b> signals. <b>Signals, not confirmed vulnerabilities</b> — items marked <em>(needs review)</em> need a human to confirm exploitability. Each line is attributed via <code>git blame</code>; vendored/minified code is skipped. Secrets engine: <b>gitleaks 8.30.1 (full git history)</b>.</p>
+    <div class="secsum"><span class="chip crit"><b>0</b> High</span><span class="chip hi"><b>0</b> Medium</span><span class="chip"><b>0</b> Low</span><span class="chip"><b>0</b> files</span></div>
+    <div class="tabs">
+      <div class="tabbar"><button type="button" class="tab-btn active" data-target="tp-all">All<span class="n">0</span></button><button type="button" class="tab-btn" data-target="tp-builtin">Built-in<span class="n">0</span></button><button type="button" class="tab-btn" data-target="tp-gitleaks">gitleaks<span class="n">0</span></button></div>
+      <div class="tabpanel active" id="tp-all">
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> ReDoS <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Secrets <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Injection/XSS <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> LPDoS <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Clipboard <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Replay <span class="cnt">No issues detected</span></summary></details>
+    </div>
+    <div class="tabpanel" id="tp-builtin">
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> ReDoS <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Secrets <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Injection/XSS <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> LPDoS <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Clipboard <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Replay <span class="cnt">No issues detected</span></summary></details>
+    </div>
+    <div class="tabpanel" id="tp-gitleaks">
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> ReDoS <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Secrets <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Injection/XSS <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> LPDoS <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Clipboard <span class="cnt">No issues detected</span></summary></details>
+      <details class="secgroup"><summary><span class="sevchip clean">clean</span> Replay <span class="cnt">No issues detected</span></summary></details>
+    </div>
+      <script>(function(){function init(){document.querySelectorAll('.tabs').forEach(function(r){r.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){r.querySelectorAll('.tab-btn').forEach(function(x){x.classList.remove('active');});r.querySelectorAll('.tabpanel').forEach(function(x){x.classList.remove('active');});b.classList.add('active');var p=r.querySelector('#'+b.getAttribute('data-target'));if(p){p.classList.add('active');}});});});}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',init);}else{init();}})();</script>
+    </div>
+  </section>
+  <hr class="divider">
   <section id="members">
     <h3>Member detail</h3>
 
     <div class="member" id="m-tayyab-rauf" style="border-color:color-mix(in srgb,var(--a) 45%,var(--border))">
-      <div class="mhead"><div><div class="name">Tayyab Rauf <span class="up">▲ Git D→C+ · Code D→A-</span></div><div class="line">131 commits · May 11 / Jun 15 / Jul 105 · 5% conventional · 16 MI</div></div>
+      <div class="mhead"><div><div class="name">Tayyab Rauf <span class="up">▲ Git D→C+ · Code D→A-</span></div><div class="line">14 commits · Jul 14 · 100% conventional · 0 MI</div></div>
         <div class="grades"><span class="pill g-c"><span class="k">Git</span>C+</span><span class="pill g-a"><span class="k">Code</span>A-</span></div></div>
       <h4>Git — C+ (was D)</h4>
       <ul><li>Far more active; recent commits are properly conventional. Still dragged by early accidental shell-command commits → coordinate a history cleanup.</li></ul>
@@ -292,7 +309,7 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color
   </section>
 
   <footer>
-    Compiled 2026-07-28 · git/pull stats auto-refreshed from live <code>git log --all</code> via <code>git-team-report</code> · grades &amp; findings from the config file.
+    Compiled 2026-07-29 · git/pull stats auto-refreshed from live <code>git log --all</code> via <code>git-team-report</code> · grades &amp; findings from the config file.
   </footer>
 </main>
 </div>
