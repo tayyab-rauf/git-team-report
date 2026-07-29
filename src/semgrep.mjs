@@ -75,7 +75,7 @@ export function runSemgrep(git, cwd, { config } = {}) {
       severity: SEV[r.extra?.severity] || 'Medium',
       snippet: `${(r.check_id || '').split('.').pop()}: ${(r.extra?.message || '').replace(/\s+/g, ' ').trim()}`.slice(0, 180),
       fix: 'Apply the remediation from this Semgrep rule (see its rule id / references).',
-      review: true, author: authorOf(file, line), authorEmail: '',
+      review: true, author: authorOf(file, line), authorEmail: '', source: 'semgrep',
     };
   });
   return { version, findings };

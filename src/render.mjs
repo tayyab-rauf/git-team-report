@@ -131,6 +131,14 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color
 .sec-item .who{font-size:11px;color:var(--muted);margin-left:6px}
 .sec-item pre{margin:6px 0 0;background:var(--surface-2);border-radius:5px;padding:8px 10px;overflow-x:auto;font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-word}
 .secfix{margin-top:10px;font-size:12px;color:var(--muted)} .secfix b{color:var(--text)}
+.tabs>input[type=radio]{position:absolute;opacity:0;pointer-events:none}
+.tabbar{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:16px}
+.tabbar label{padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;margin-bottom:-1px}
+.tabbar label:hover{color:var(--text);background:var(--surface)}
+.tabbar label .n{font-weight:400;opacity:.7;margin-left:4px}
+.tabpanel{display:none}
+#sectab-all:checked~.tabbar label[for=sectab-all],#sectab-builtin:checked~.tabbar label[for=sectab-builtin],#sectab-gitleaks:checked~.tabbar label[for=sectab-gitleaks],#sectab-semgrep:checked~.tabbar label[for=sectab-semgrep]{color:var(--text);border-color:var(--border);background:var(--bg);border-bottom:1px solid var(--bg)}
+#sectab-all:checked~.tabpanel[data-tab=all],#sectab-builtin:checked~.tabpanel[data-tab=builtin],#sectab-gitleaks:checked~.tabpanel[data-tab=gitleaks],#sectab-semgrep:checked~.tabpanel[data-tab=semgrep]{display:block}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 </style>`;
@@ -145,16 +153,11 @@ const gradeCls = (g) => { const c = (g || '')[0]; return c === 'A' ? 'g-a' : c =
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const firstName = (n) => (n.startsWith('M. ') || n.startsWith('S. ') ? n : n.split(' ')[0]);
 
-/** Security scan → collapsible HTML section (grouped by vector, blame-attributed). */
-function securityHtml(sec) {
-  if (!sec) return '';
-  const all = Object.values(sec.byVector).flat();
-  const c = { High: 0, Medium: 0, Low: 0 };
-  for (const f of all) c[f.severity]++;
-
-  const vectors = [...SEC_VECTORS, ...Object.keys(sec.byVector).filter((v) => !SEC_VECTORS.includes(v))];
-  const groups = vectors.map((v) => {
-    const hits = (sec.byVector[v] || []).slice().sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
+/** Render the collapsible per-vector groups for a given {vector: findings[]} map. */
+function renderSecGroups(byVector) {
+  const vectors = [...SEC_VECTORS, ...Object.keys(byVector).filter((v) => !SEC_VECTORS.includes(v))];
+  return vectors.map((v) => {
+    const hits = (byVector[v] || []).slice().sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
     if (!hits.length) {
       return `<details class="secgroup"><summary><span class="sevchip clean">clean</span> ${v} <span class="cnt">No issues detected</span></summary></details>`;
     }
@@ -172,14 +175,58 @@ function securityHtml(sec) {
     }).join('<hr style="border:0;border-top:1px dashed var(--border);margin:12px 0">');
     return `<details class="secgroup"${worst === 'High' ? ' open' : ''}><summary><span class="sevchip ${worst}">${worst}</span> ${v} <span class="cnt">${hits.length} signal(s)</span></summary><div class="sec-body">${body}</div></details>`;
   }).join('\n      ');
+}
 
-  return `
+/** Regroup a flat finding list into { vector: findings[] } (filtered by source). */
+function byVectorFrom(sec, source) {
+  const out = {};
+  for (const [v, hits] of Object.entries(sec.byVector)) {
+    const f = source ? hits.filter((h) => h.source === source) : hits;
+    if (f.length) out[v] = f;
+  }
+  return out;
+}
+
+/** Security scan → tabbed (by engine) collapsible HTML section, blame-attributed. */
+function securityHtml(sec) {
+  if (!sec) return '';
+  const all = Object.values(sec.byVector).flat();
+  const c = { High: 0, Medium: 0, Low: 0 };
+  for (const f of all) c[f.severity]++;
+  const count = (src) => all.filter((f) => f.source === src).length;
+
+  const head = `
   <hr class="divider">
   <section id="security">
     <h3>Security signal scan</h3>
     <p class="sub">Scanned ${sec.files} files · <b>${all.length}</b> signals. <b>Signals, not confirmed vulnerabilities</b> — items marked <em>(needs review)</em> need a human to confirm exploitability. Each line is attributed via <code>git blame</code>; vendored/minified code is skipped.${sec.secretsEngine ? ` Secrets engine: <b>${esc(sec.secretsEngine)}</b>.` : ''}${sec.sastEngine ? ` SAST: <b>${esc(sec.sastEngine)}</b>.` : ''}</p>
-    <div class="secsum"><span class="chip crit"><b>${c.High}</b> High</span><span class="chip hi"><b>${c.Medium}</b> Medium</span><span class="chip"><b>${c.Low}</b> Low</span><span class="chip"><b>${sec.files}</b> files</span></div>
-      ${groups}
+    <div class="secsum"><span class="chip crit"><b>${c.High}</b> High</span><span class="chip hi"><b>${c.Medium}</b> Medium</span><span class="chip"><b>${c.Low}</b> Low</span><span class="chip"><b>${sec.files}</b> files</span></div>`;
+
+  // A tab for every engine that RAN (so an engine that found nothing still shows,
+  // as "clean"), not merely those with findings.
+  const engines = [
+    { id: 'builtin', label: 'Built-in', src: 'built-in', ran: true },
+    { id: 'gitleaks', label: 'gitleaks', src: 'gitleaks', ran: /gitleaks/.test(sec.secretsEngine || '') },
+    { id: 'semgrep', label: 'Semgrep', src: 'semgrep', ran: !!sec.sastEngine },
+  ].filter((e) => e.ran);
+
+  if (engines.length <= 1) {
+    return `${head}\n      ${renderSecGroups(sec.byVector)}\n  </section>`;
+  }
+
+  const tabs = [{ id: 'all', label: 'All', bv: sec.byVector, n: all.length },
+    ...engines.map((e) => ({ id: e.id, label: e.label, bv: byVectorFrom(sec, e.src), n: count(e.src) }))];
+
+  const inputs = tabs.map((t, i) => `<input type="radio" name="sectabs" id="sectab-${t.id}"${i === 0 ? ' checked' : ''}>`).join('');
+  const bar = tabs.map((t) => `<label for="sectab-${t.id}">${esc(t.label)}<span class="n">${t.n}</span></label>`).join('');
+  const panels = tabs.map((t) => `<div class="tabpanel" data-tab="${t.id}">\n      ${renderSecGroups(t.bv)}\n    </div>`).join('\n    ');
+
+  return `${head}
+    <div class="tabs">
+      ${inputs}
+      <div class="tabbar">${bar}</div>
+      ${panels}
+    </div>
   </section>`;
 }
 

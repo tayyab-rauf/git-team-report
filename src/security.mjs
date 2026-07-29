@@ -127,7 +127,7 @@ export function scanSecurity(git, cwd, { rules = SECURITY_RULES, globs = SECURIT
           byVector[rule.vector].push({
             id: rule.id, file, line: i + 1, severity: rule.severity,
             snippet: clip(lines[i]), fix: rule.fix, review: !!rule.review,
-            author: who.name, authorEmail: who.email,
+            author: who.name, authorEmail: who.email, source: 'built-in',
           });
         }
       }
@@ -188,7 +188,7 @@ function runGitleaks(cwd) {
         id: `gitleaks:${f.RuleID || 'secret'}`, file: f.File, line: f.StartLine || 0, severity: 'High',
         snippet: `${f.RuleID || 'secret'} — ${(f.Description || 'potential secret')}`.slice(0, 160),
         fix: 'Rotate the exposed credential immediately and purge it from git history (git filter-repo / BFG); load secrets from env/secret manager. (gitleaks scans full history — this may be in an old commit, not the current file.)',
-        review: true, author: f.Author || 'unknown', authorEmail: f.Email || '',
+        review: true, author: f.Author || 'unknown', authorEmail: f.Email || '', source: 'gitleaks',
       }));
       return { version, findings };
     } catch { try { rmSync(tmp, { force: true }); } catch {} }

@@ -52,6 +52,10 @@ wrote the line** (via `git blame`) plus an owner tally per group:
 5. **Clipboard** — `navigator.clipboard` / paste handlers (pastejacking)
 6. **Replay** — sensitive `POST/PUT/DELETE` mutations lacking idempotency keys
 
+In the HTML report the Security section is **tabbed by engine** — *All*, *Built-in*,
+*gitleaks*, *Semgrep* — so you can look at each source's findings separately (an engine
+that ran but found nothing shows as "clean"). Tabs are pure CSS (no JS).
+
 > These are **signals, not confirmed vulnerabilities.** Grep finds the sink; it can't
 > tell if the input is attacker-controlled, length-bounded, or sanitized downstream.
 > Findings that need that judgment are marked _(review)_. Vendored/minified files
