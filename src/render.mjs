@@ -131,14 +131,12 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding-top:18px;color
 .sec-item .who{font-size:11px;color:var(--muted);margin-left:6px}
 .sec-item pre{margin:6px 0 0;background:var(--surface-2);border-radius:5px;padding:8px 10px;overflow-x:auto;font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-word}
 .secfix{margin-top:10px;font-size:12px;color:var(--muted)} .secfix b{color:var(--text)}
-.tabs>input[type=radio]{position:absolute;opacity:0;pointer-events:none}
 .tabbar{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:16px}
-.tabbar label{padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;margin-bottom:-1px}
-.tabbar label:hover{color:var(--text);background:var(--surface)}
-.tabbar label .n{font-weight:400;opacity:.7;margin-left:4px}
-.tabpanel{display:none}
-#sectab-all:checked~.tabbar label[for=sectab-all],#sectab-builtin:checked~.tabbar label[for=sectab-builtin],#sectab-gitleaks:checked~.tabbar label[for=sectab-gitleaks],#sectab-semgrep:checked~.tabbar label[for=sectab-semgrep]{color:var(--text);border-color:var(--border);background:var(--bg);border-bottom:1px solid var(--bg)}
-#sectab-all:checked~.tabpanel[data-tab=all],#sectab-builtin:checked~.tabpanel[data-tab=builtin],#sectab-gitleaks:checked~.tabpanel[data-tab=gitleaks],#sectab-semgrep:checked~.tabpanel[data-tab=semgrep]{display:block}
+.tab-btn{padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;background:none;border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;margin-bottom:-1px;font-family:inherit}
+.tab-btn:hover{color:var(--text);background:var(--surface)}
+.tab-btn.active{color:var(--text);border-color:var(--border);background:var(--bg);border-bottom:1px solid var(--bg)}
+.tab-btn .n{font-weight:400;opacity:.7;margin-left:4px}
+.tabpanel{display:none} .tabpanel.active{display:block}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 </style>`;
@@ -217,15 +215,15 @@ function securityHtml(sec) {
   const tabs = [{ id: 'all', label: 'All', bv: sec.byVector, n: all.length },
     ...engines.map((e) => ({ id: e.id, label: e.label, bv: byVectorFrom(sec, e.src), n: count(e.src) }))];
 
-  const inputs = tabs.map((t, i) => `<input type="radio" name="sectabs" id="sectab-${t.id}"${i === 0 ? ' checked' : ''}>`).join('');
-  const bar = tabs.map((t) => `<label for="sectab-${t.id}">${esc(t.label)}<span class="n">${t.n}</span></label>`).join('');
-  const panels = tabs.map((t) => `<div class="tabpanel" data-tab="${t.id}">\n      ${renderSecGroups(t.bv)}\n    </div>`).join('\n    ');
+  const bar = tabs.map((t, i) => `<button type="button" class="tab-btn${i === 0 ? ' active' : ''}" data-target="tp-${t.id}">${esc(t.label)}<span class="n">${t.n}</span></button>`).join('');
+  const panels = tabs.map((t, i) => `<div class="tabpanel${i === 0 ? ' active' : ''}" id="tp-${t.id}">\n      ${renderSecGroups(t.bv)}\n    </div>`).join('\n    ');
+  const script = `<script>(function(){function init(){document.querySelectorAll('.tabs').forEach(function(r){r.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){r.querySelectorAll('.tab-btn').forEach(function(x){x.classList.remove('active');});r.querySelectorAll('.tabpanel').forEach(function(x){x.classList.remove('active');});b.classList.add('active');var p=r.querySelector('#'+b.getAttribute('data-target'));if(p){p.classList.add('active');}});});});}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',init);}else{init();}})();</script>`;
 
   return `${head}
     <div class="tabs">
-      ${inputs}
       <div class="tabbar">${bar}</div>
       ${panels}
+      ${script}
     </div>
   </section>`;
 }
