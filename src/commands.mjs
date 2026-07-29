@@ -72,10 +72,10 @@ export async function security({ cwd, outPath, gitleaks = true, semgrep = false,
   const date = dataThroughDate(git);
   const { pack } = resolvePack(git, lang);
   console.log(`  Language pack: ${pack.label}`);
-  if (gitleaks) await ensureTool('gitleaks', { autoYes: installTools, prompt });
-  if (semgrep) await ensureTool('semgrep', { autoYes: installTools, prompt });
-  console.log(`  Scanning for security signals…${semgrep ? ' (running Semgrep — may take a while)' : ''}`);
-  const result = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+  const useGitleaks = gitleaks ? await ensureTool('gitleaks', { autoYes: installTools, prompt }) : false;
+  const useSemgrep = semgrep ? await ensureTool('semgrep', { autoYes: installTools, prompt }) : false;
+  console.log(`  Scanning for security signals…${useSemgrep ? ' (running Semgrep — may take a while)' : ''}`);
+  const result = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks: useGitleaks, semgrep: useSemgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
   process.stdout.write('\r' + ' '.repeat(30) + '\r');
   const md = securityMarkdown(result, { repoName, date });
   const out = outPath ? resolve(outPath) : join(cwd, 'security-scan.md');
@@ -126,6 +126,15 @@ export async function build({ cwd, configPath, outPath, full, scan = true, secur
   const prev = !full && existsSync(stateFile) ? readJson(stateFile) : null;
   const lastDate = prev?.compiledDate || config.period?.start || firstCommitDate(git);
 
+  // deduplicate authors by normalized email
+  const seenEmails = new Set();
+  config.authors = config.authors.filter((a) => {
+    const key = (a.email || '').toLowerCase().trim();
+    if (!key || seenEmails.has(key)) return false;
+    seenEmails.add(key);
+    return true;
+  });
+
   // collect git metrics
   const metrics = new Map();
   for (const a of config.authors) metrics.set(a.email, metricsFor(git, a.email));
@@ -153,10 +162,10 @@ export async function build({ cwd, configPath, outPath, full, scan = true, secur
   // security scan (folded into the same HTML) unless disabled
   let securityResult = null;
   if (doSecurity) {
-    if (gitleaks) await ensureTool('gitleaks', { autoYes: installTools, prompt });
-    if (semgrep) await ensureTool('semgrep', { autoYes: installTools, prompt });
-    console.log(`  Scanning for security signals…${semgrep ? ' (running Semgrep — may take a while)' : ''}`);
-    securityResult = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks, semgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+    const useGitleaks = gitleaks ? await ensureTool('gitleaks', { autoYes: installTools, prompt }) : false;
+    const useSemgrep = semgrep ? await ensureTool('semgrep', { autoYes: installTools, prompt }) : false;
+    console.log(`  Scanning for security signals…${useSemgrep ? ' (running Semgrep — may take a while)' : ''}`);
+    securityResult = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks: useGitleaks, semgrep: useSemgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
     process.stdout.write('\r' + ' '.repeat(30) + '\r');
   }
 

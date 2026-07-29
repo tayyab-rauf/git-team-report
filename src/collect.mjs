@@ -28,14 +28,24 @@ export function firstCommitDate(git) {
   return all[0] || new Date().toISOString().slice(0, 10);
 }
 
-/** Discover authors from history: [{ name, email, commits }] sorted by volume. */
+/** Discover authors from history: [{ name, email, commits }] sorted by volume, merged by email. */
 export function discoverAuthors(git) {
-  return git(`shortlog -sne --all`)
+  const raw = git(`shortlog -sne --all`)
     .split('\n')
     .map((l) => l.trim().match(/^(\d+)\s+(.+?)\s+<(.+?)>$/))
     .filter(Boolean)
-    .map((m) => ({ commits: parseInt(m[1], 10), name: m[2], email: m[3] }))
-    .sort((a, b) => b.commits - a.commits);
+    .map((m) => ({ commits: parseInt(m[1], 10), name: m[2].trim(), email: m[3].trim().toLowerCase() }));
+
+  const map = new Map();
+  for (const entry of raw) {
+    if (!map.has(entry.email)) {
+      map.set(entry.email, { commits: entry.commits, name: entry.name, email: entry.email });
+    } else {
+      map.get(entry.email).commits += entry.commits;
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.commits - a.commits);
 }
 
 /** All git metrics for one author (matched by email/name substring). */

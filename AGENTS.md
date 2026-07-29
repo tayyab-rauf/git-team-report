@@ -169,14 +169,9 @@ always shown — never color-only encoding. Keep it CSP-safe: inline everything,
 
 ## 10. Known issues / TODO
 
-- **npm publish pending.** Currently run via `npx github:tayyab-rauf/git-team-report` or a
-  clone. `github:` installs are heavy and flaky on Windows — see below. Publishing to the
-  npm registry (`npx git-team-report`) is the intended fix. `package.json` still needs
-  `author/repository/homepage/bugs` metadata and possibly a version bump.
-- **Windows + spaced username:** `npx github:…` can fail with `EPERM … mkdir 'C:\Users\M'`
-  (path truncated at a space in the npm/npx layer — NOT this tool's code). Workarounds:
-  clone + `node bin/cli.mjs`, or `npm config set cache C:\npm-cache`, or global install.
-- **gitleaks per-commit dedupe** (see §7).
+- **npm publish readiness.** `package.json` now includes `author`, `repository`, `homepage`, and `bugs` metadata. Publishing to the npm registry (`npx git-team-report`) is ready so users can run `npx git-team-report` directly instead of `npx github:tayyab-rauf/git-team-report`.
+- **Windows + spaced username:** `npx github:…` can fail with `EPERM … mkdir 'C:\Users\M'` (path truncated at a space in the npm/npx layer — NOT this tool's code). Workarounds: clone + `node bin/cli.mjs`, `npm config set cache C:\npm-cache`, or publish to npm registry.
+- **gitleaks per-commit dedupe** implemented in `src/security.mjs` by unique finding signature `(RuleID:File:StartLine:Match)`.
 - **Semgrep Dart support** is weak.
 - **Grades are heuristic** first-passes; the config is meant to override them.
 - Cross-language repos use the single dominant pack (no per-language merge yet).

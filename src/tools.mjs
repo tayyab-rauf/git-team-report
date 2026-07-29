@@ -31,6 +31,8 @@ function installPlan(tool) {
       ['brew', 'brew install semgrep'],
       ['pip3', 'pip3 install --user semgrep'],
       ['pip', 'pip install --user semgrep'],
+      ['python', 'python -m pip install --user semgrep'],
+      ['py', 'py -m pip install --user semgrep'],
       ['winget', 'winget install Semgrep.Semgrep'],
       ['choco', 'choco install semgrep'],
     ],
