@@ -108,7 +108,8 @@ single pack with `--lang`.
 
 | Pack (`--lang`) | Detected by | Code-quality rules | Security rules |
 |---|---|---|---|
-| `typescript` (default) | `.ts` / `.tsx` | `any`, `console`, bare `subscribe`, unguarded DOM, non-null `!.`, TODO, large files | XSS/`bypassSecurityTrust`/`innerHTML`, NoSQL ops, ReDoS, clipboard, LPDoS, replay, secrets |
+| `typescript` (default) | `.ts` / `.tsx` | `any`, `console`, bare `subscribe`, unguarded DOM, non-null `!.`, TODO, large files, missing `OnPush`, nested `subscribe`, `@ts-ignore`, deep relative imports, constructor DI, empty catch | XSS/`bypassSecurityTrust`/`innerHTML`, NoSQL ops, ReDoS, clipboard, LPDoS, replay, secrets |
+| `html` | `.html` / `.vue` | `<img>` without alt, `<button>` without type, legacy `*ngIf`/`*ngFor`, TODO | secrets, XSS |
 | `java` | `.java` | `System.out/err`, `printStackTrace`, empty catch, `==` on strings, TODO, large files | SQL-concat, `Runtime.exec`/`ProcessBuilder`, unsafe deserialization, `MultipartFile`, mutation mappings, secrets |
 | `flutter` | `.dart` | `print()`, null-assertion `!`, `// ignore:`, TODO, large files | `innerHtml`, `Clipboard`, mutation calls, secrets |
 | `generic` | anything else | TODO, large files | secret patterns |

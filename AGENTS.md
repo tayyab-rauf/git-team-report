@@ -120,7 +120,9 @@ counting tracked files per extension (`ts/tsx`→typescript, `java`→java, `dar
 else generic). Override via `--lang` or `config.language`.
 
 **To add a language:** add a pack to `LANGUAGES`, add its extension→id to `EXT_LANG`,
-define code rules (`{key,label,re,pathInclude?,pathExclude?}`) and security rules
+define code rules (`{key,label,re,block?,pathInclude?,pathExclude?}` — `block: true` runs
+the regex over the whole file instead of per line, for constructs that span lines; the match
+offset is mapped back to a line so blame still works) and security rules
 (`{id,vector,severity,re,fix,review?,pathInclude?,pathExclude?}` where vector ∈ the six),
 and add weights for its code-rule `key`s in `scan.js codeGradeFrom`. Reuse `SECRET_RULES`
 for secrets and spread `CONFIG_GLOBS` into `secGlobs` (env/config/IaC files carry secrets
@@ -192,6 +194,12 @@ always shown — never color-only encoding. Keep it CSP-safe: inline everything,
 - **gitleaks per-commit dedupe** implemented in `src/security.mjs` by unique finding signature `(RuleID:File:StartLine:Match)`.
 - **Semgrep Dart support** is weak.
 - **Grades are heuristic** first-passes; the config is meant to override them.
+- **Measure a rule before shipping it.** `@for` missing `track` scored 405 per-line and 10
+  with a naive block regex; balanced-paren ground truth said **1**, so the rule was dropped.
+  `<img>`/`<button>` rules had to learn Angular's `[alt]`/`[type]` bindings (280 → 3).
+  A rule that cannot beat its own false-positive rate belongs in the bin, not the matrix.
+- Scanning templates costs a `git blame` per file: the reference repo went 869 → 1305 files
+  and ~7s → ~23s. Use `--no-scan` or `excludePaths` if that bites.
 - `period.start` past ~2038 silently fails git's date parser, so the window is dropped.
 - Vendored/generated code (`/assets/`, `vendor/`, `.bundle.`, minified) is excluded from
   **both** scanners via `ignore.mjs GENERATED_EXCLUDE` + `isMinified()`. It used to be

@@ -53,7 +53,7 @@ Flags:
   --disable-rule <id>  disable specific smell or security rule (e.g. "lpdos-file")
   --no-gitleaks        force built-in secret patterns even if gitleaks is installed
   --semgrep            also run Semgrep SAST (needs semgrep installed; slower)
-  --lang <id>          force a language pack: typescript | java | flutter | generic
+  --lang <id>          force a language pack: typescript | java | flutter | html | generic
                        (default: auto-detected from the repo's dominant language)
   --install-tools      auto-install missing gitleaks/semgrep (no prompt) then scan
   --no-prompt          never prompt to install; just print the install hint

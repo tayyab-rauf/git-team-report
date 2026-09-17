@@ -12,11 +12,44 @@ import { DEFAULT_RULES as TS_CODE_RULES, DEFAULT_GLOBS as TS_CODE_GLOBS } from '
 import { SECURITY_RULES as TS_SEC_RULES, SECURITY_GLOBS as TS_SEC_GLOBS, SECRET_RULES, CONFIG_GLOBS } from './security.mjs';
 import { createPathMatcher } from './ignore.mjs';
 
+// ── Angular / TypeScript additions ────────────────────────────────────────
+// Every rule below was measured against a real Angular 21 codebase before being
+// added; candidates that could not beat their own false-positive rate (notably
+// `@for` missing `track` — 1 real violation in 820 blocks, and a compile error in
+// Angular anyway) were dropped rather than shipped as noise.
+const NG_CODE = [
+  { key: 'onpush',     label: 'Component without <code>OnPush</code>', block: true,
+    re: /@Component\s*\(\s*\{(?:(?!changeDetection)[\s\S])*?\}\s*\)/, pathInclude: /\.ts$/ },
+  { key: 'nestedsub',  label: 'Nested <code>subscribe()</code>', block: true,
+    re: /\.subscribe\((?:[^()]|\([^()]*\))*\.subscribe\(/s, pathInclude: /\.ts$/ },
+  { key: 'tsignore',   label: '<code>@ts-ignore</code> / <code>@ts-nocheck</code>',
+    re: /@ts-(ignore|nocheck)\b/ },
+  { key: 'deepimport', label: 'Deep relative import', re: /from\s+['"](\.\.\/){4,}/ },
+  { key: 'ctordi',     label: 'Constructor DI over <code>inject()</code>',
+    re: /constructor\s*\([^)]*\b(private|public|protected)\s+\w+\s*:/, pathInclude: /\.ts$/ },
+  // shared key with the Java pack: one regex covering both `catch (e) {}` and `catch {}`
+  { key: 'emptycatch', label: 'Empty catch block', block: true,
+    re: /catch\s*(?:\([^)]*\))?\s*\{\s*\}/ },
+];
+
+// ── Templates (HTML) ──────────────────────────────────────────────────────
+// 436 templates in the reference repo had zero code-quality coverage: codeGlobs
+// was ts/js only, so the whole template layer was invisible to the scanner.
+const TMPL_CODE = [
+  { key: 'imgalt',   label: '<code>&lt;img&gt;</code> without alt', block: true,
+    re: /<img\b(?:(?!\[?(attr\.)?alt\]?\s*=)[^>])*>/is },
+  { key: 'btntype',  label: '<code>&lt;button&gt;</code> without type', block: true,
+    re: /<button\b(?:(?!\[?type\]?\s*=)[^>])*>/is },
+  { key: 'legacycf', label: 'Legacy <code>*ngIf</code>/<code>*ngFor</code>', re: /\*ng(If|For|Switch)\b/ },
+  { key: 'todo',     label: 'TODO / FIXME', re: /\b(TODO|FIXME)\b/ },
+];
+
 // ── Java ──────────────────────────────────────────────────────────────────
 const JAVA_CODE = [
   { key: 'sysout',     label: '<code>System.out/err</code>', re: /System\.(out|err)\.print/ },
   { key: 'stacktrace', label: '<code>printStackTrace()</code>', re: /\.printStackTrace\s*\(/ },
-  { key: 'emptycatch', label: 'Empty catch block', re: /catch\s*\([^)]*\)\s*\{\s*\}/ },
+  { key: 'emptycatch', label: 'Empty catch block', block: true,
+    re: /catch\s*(?:\([^)]*\))?\s*\{\s*\}/ },
   { key: 'streq',      label: '<code>==</code> on strings', re: /"\s*==|==\s*"/ },
   { key: 'todo',       label: 'TODO / FIXME', re: /\b(TODO|FIXME)\b/ },
 ];
@@ -66,7 +99,9 @@ const GENERIC_SEC_GLOBS = [...GENERIC_CODE_GLOBS, ...CONFIG_GLOBS];
 
 export const LANGUAGES = {
   typescript: { id: 'typescript', label: 'TypeScript', detect: ['*.ts', '*.tsx'],
-    codeGlobs: TS_CODE_GLOBS, codeRules: TS_CODE_RULES, secGlobs: TS_SEC_GLOBS, secRules: TS_SEC_RULES },
+    codeGlobs: TS_CODE_GLOBS, codeRules: [...TS_CODE_RULES, ...NG_CODE], secGlobs: TS_SEC_GLOBS, secRules: TS_SEC_RULES },
+  html: { id: 'html', label: 'Templates', detect: ['*.html'],
+    codeGlobs: ['*.html', '*.vue'], codeRules: TMPL_CODE, secGlobs: ['*.html', '*.vue'], secRules: TS_SEC_RULES },
   java: { id: 'java', label: 'Java', detect: ['*.java'],
     codeGlobs: ['*.java'], codeRules: JAVA_CODE, secGlobs: ['*.java', ...CONFIG_GLOBS], secRules: JAVA_SEC },
   flutter: { id: 'flutter', label: 'Flutter / Dart', detect: ['*.dart'],
@@ -75,11 +110,11 @@ export const LANGUAGES = {
     codeGlobs: GENERIC_CODE_GLOBS, codeRules: GENERIC_CODE, secGlobs: GENERIC_SEC_GLOBS, secRules: SECRET_RULES },
 };
 
-const EXT_LANG = { ts: 'typescript', tsx: 'typescript', js: 'typescript', jsx: 'typescript', mjs: 'typescript', cjs: 'typescript', java: 'java', dart: 'flutter' };
+const EXT_LANG = { ts: 'typescript', tsx: 'typescript', js: 'typescript', jsx: 'typescript', mjs: 'typescript', cjs: 'typescript', java: 'java', dart: 'flutter', html: 'html', vue: 'html' };
 
 /** Count tracked files per known language and return the dominant one. */
 export function detectLanguage(git) {
-  const counts = { typescript: 0, java: 0, flutter: 0 };
+  const counts = { typescript: 0, java: 0, flutter: 0, html: 0 };
   for (const f of git('ls-files').split('\n')) {
     if (!f || /node_modules|\.d\.ts$/.test(f)) continue;
     const ext = f.split('.').pop();
