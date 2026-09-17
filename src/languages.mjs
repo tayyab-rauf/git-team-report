@@ -3,12 +3,14 @@
  * the code-quality + security rules appropriate to that stack, so the scanners
  * (which are pack-agnostic) produce meaningful results on TS, Java, or Flutter.
  *
- * The pack is chosen automatically from the repo's dominant source language, or
- * forced via config `language` / the CLI `--lang` flag. A cross-language repo
- * uses its dominant pack (v1) — explicit `--lang` overrides.
+ * On auto-detection every language present in the repo contributes its pack (plus
+ * `generic`, which carries the config/secret globs), merged via `mergePacks` with
+ * each pack's rules scoped to its own files. Config `language` / CLI `--lang`
+ * forces a single pack instead.
  */
 import { DEFAULT_RULES as TS_CODE_RULES, DEFAULT_GLOBS as TS_CODE_GLOBS } from './scan.mjs';
-import { SECURITY_RULES as TS_SEC_RULES, SECURITY_GLOBS as TS_SEC_GLOBS, SECRET_RULES } from './security.mjs';
+import { SECURITY_RULES as TS_SEC_RULES, SECURITY_GLOBS as TS_SEC_GLOBS, SECRET_RULES, CONFIG_GLOBS } from './security.mjs';
+import { createPathMatcher } from './ignore.mjs';
 
 // ── Java ──────────────────────────────────────────────────────────────────
 const JAVA_CODE = [
@@ -60,15 +62,15 @@ const DART_SEC = [
 // ── Generic fallback (unknown stack) ──────────────────────────────────────
 const GENERIC_CODE = [{ key: 'todo', label: 'TODO / FIXME', re: /\b(TODO|FIXME)\b/ }];
 const GENERIC_CODE_GLOBS = ['*.py', '*.rb', '*.go', '*.rs', '*.php', '*.cs', '*.kt', '*.swift', '*.scala', '*.c', '*.cc', '*.cpp', '*.h'];
-const GENERIC_SEC_GLOBS = [...GENERIC_CODE_GLOBS, '*.env', '*.yml', '*.yaml', '*.properties', '*.ini', '*.cfg', '*.toml'];
+const GENERIC_SEC_GLOBS = [...GENERIC_CODE_GLOBS, ...CONFIG_GLOBS];
 
 export const LANGUAGES = {
   typescript: { id: 'typescript', label: 'TypeScript', detect: ['*.ts', '*.tsx'],
     codeGlobs: TS_CODE_GLOBS, codeRules: TS_CODE_RULES, secGlobs: TS_SEC_GLOBS, secRules: TS_SEC_RULES },
   java: { id: 'java', label: 'Java', detect: ['*.java'],
-    codeGlobs: ['*.java'], codeRules: JAVA_CODE, secGlobs: ['*.java', '*.properties', '*.yml', '*.yaml', '*.xml'], secRules: JAVA_SEC },
+    codeGlobs: ['*.java'], codeRules: JAVA_CODE, secGlobs: ['*.java', ...CONFIG_GLOBS], secRules: JAVA_SEC },
   flutter: { id: 'flutter', label: 'Flutter / Dart', detect: ['*.dart'],
-    codeGlobs: ['*.dart'], codeRules: DART_CODE, secGlobs: ['*.dart'], secRules: DART_SEC },
+    codeGlobs: ['*.dart'], codeRules: DART_CODE, secGlobs: ['*.dart', ...CONFIG_GLOBS], secRules: DART_SEC },
   generic: { id: 'generic', label: 'Generic', detect: [],
     codeGlobs: GENERIC_CODE_GLOBS, codeRules: GENERIC_CODE, secGlobs: GENERIC_SEC_GLOBS, secRules: SECRET_RULES },
 };
@@ -88,9 +90,56 @@ export function detectLanguage(git) {
   return { id: n > 0 ? top : 'generic', counts };
 }
 
+/**
+ * Restrict a pack's rules to that pack's own files, so merged packs don't
+ * cross-contaminate (Java's `== on strings` must not fire inside .ts).
+ * `pathInclude` is only ever consumed as `.test(file)`, so a matcher object does.
+ */
+function scopeRules(rules, globs) {
+  const inPack = createPathMatcher(globs);
+  return rules.map((r) => ({
+    ...r,
+    pathInclude: r.pathInclude ? { test: (f) => inPack(f) && r.pathInclude.test(f) } : { test: inPack },
+  }));
+}
+
+/** Merge same-key rules by OR-ing their scopes, so one row per smell, not one per pack. */
+function mergeRules(rules, key) {
+  const out = new Map();
+  for (const r of rules) {
+    const prev = out.get(r[key]);
+    if (!prev) { out.set(r[key], r); continue; }
+    const [a, b] = [prev.pathInclude, r.pathInclude];
+    out.set(r[key], { ...prev, pathInclude: { test: (f) => a.test(f) || b.test(f) } });
+  }
+  return [...out.values()];
+}
+
+/**
+ * Union several packs into one. Every language present in the repo gets scanned
+ * instead of only the dominant one — a polyglot repo used to leave everything but
+ * the top language completely unmonitored.
+ */
+export function mergePacks(packs) {
+  if (packs.length === 1) return packs[0];
+  const uniq = (xs) => [...new Set(xs)];
+  const named = packs.filter((p) => p.id !== 'generic').map((p) => p.label);
+  return {
+    id: packs.map((p) => p.id).join('+'),
+    label: named.length ? named.join(' + ') : 'Generic',
+    codeGlobs: uniq(packs.flatMap((p) => p.codeGlobs)),
+    codeRules: mergeRules(packs.flatMap((p) => scopeRules(p.codeRules, p.codeGlobs)), 'key'),
+    secGlobs: uniq(packs.flatMap((p) => p.secGlobs)),
+    secRules: mergeRules(packs.flatMap((p) => scopeRules(p.secRules, p.secGlobs)), 'id'),
+  };
+}
+
 /** Resolve a pack from an explicit id (cli/config) or auto-detection. */
 export function resolvePack(git, explicit) {
   if (explicit && LANGUAGES[explicit]) return { pack: LANGUAGES[explicit], detected: null, source: 'explicit' };
-  const { id, counts } = detectLanguage(git);
-  return { pack: LANGUAGES[id], detected: counts, source: 'auto' };
+  const { counts } = detectLanguage(git);
+  // every detected language + generic (which carries the config/secret globs and
+  // covers py/go/rb/… files no dedicated pack claims)
+  const present = Object.keys(counts).filter((k) => counts[k] > 0).map((k) => LANGUAGES[k]);
+  return { pack: mergePacks([...present, LANGUAGES.generic]), detected: counts, source: 'auto' };
 }

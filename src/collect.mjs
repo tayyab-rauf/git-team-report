@@ -50,19 +50,24 @@ export function discoverAuthors(git) {
 }
 
 /**
- * Live numbers for one author across git history: commits, conventional %,
- * ticket links, lines added/deleted, monthly cadence, last active date.
+ * Live numbers for one author: commits, conventional %, ticket links, lines
+ * added/deleted, monthly cadence, last active date.
+ *
+ * `since` (config `period.start`) bounds every number, so the window printed in
+ * the report header is the window the numbers actually describe. Omit it for
+ * all-time. Note the code scan stays HEAD-based — blame has no useful window.
  */
-export function metricsFor(git, email, { excludePatterns = [] } = {}) {
+export function metricsFor(git, email, { excludePatterns = [], since = null } = {}) {
   const esc = String(email).replace(/"/g, '');
-  const commits = parseInt(git(`rev-list --all --count --author="${esc}"`) || '0', 10);
-  const subjects = git(`log --all --author="${esc}" --format=%s`).split('\n').filter(Boolean);
+  const win = since ? ` --since="${String(since).replace(/"/g, '')} 00:00:00"` : '';
+  const commits = parseInt(git(`rev-list --all --count --author="${esc}"${win}`) || '0', 10);
+  const subjects = git(`log --all --author="${esc}"${win} --format=%s`).split('\n').filter(Boolean);
   const conv = subjects.filter((s) => CONV_RE.test(s)).length;
   const mi = subjects.filter((s) => /([A-Za-z]{2,}-\d+|#\d+)/.test(s)).length;
 
   const pathExcluded = createPathMatcher(excludePatterns);
   let added = 0, deleted = 0;
-  for (const line of git(`log --all --author="${esc}" --pretty=tformat: --numstat`).split('\n')) {
+  for (const line of git(`log --all --author="${esc}"${win} --pretty=tformat: --numstat`).split('\n')) {
     const [a, d, p] = line.split('\t');
     if (p && pathExcluded(p)) continue;
     if (a && a !== '-') added += parseInt(a, 10) || 0;
@@ -70,11 +75,11 @@ export function metricsFor(git, email, { excludePatterns = [] } = {}) {
   }
 
   const months = {};
-  for (const m of git(`log --all --author="${esc}" --format=%ad --date=format:%Y-%m`).split('\n').filter(Boolean)) {
+  for (const m of git(`log --all --author="${esc}"${win} --format=%ad --date=format:%Y-%m`).split('\n').filter(Boolean)) {
     months[m] = (months[m] || 0) + 1;
   }
 
-  const lastActive = git(`log --all --author="${esc}" --format=%ad --date=short -1`) || null;
+  const lastActive = git(`log --all --author="${esc}"${win} --format=%ad --date=short -1`) || null;
 
   return {
     commits, conv, mi, added, deleted, months, lastActive,

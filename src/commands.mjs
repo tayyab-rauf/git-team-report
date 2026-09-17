@@ -154,9 +154,22 @@ export async function build({ cwd, configPath, outPath, full, scan = true, secur
     return true;
   });
 
-  // collect git metrics with exclude patterns applied
+  // collect git metrics, windowed to the period the report header advertises
+  const since = config.period?.start || null;
   const metrics = new Map();
-  for (const a of config.authors) metrics.set(a.email, metricsFor(git, a.email, { excludePatterns: excludePaths }));
+  for (const a of config.authors) metrics.set(a.email, metricsFor(git, a.email, { excludePatterns: excludePaths, since }));
+
+  // An author in git but not in the config is silently absent from the whole
+  // report — no card, no matrix column. Warn instead of quietly under-reporting.
+  // Config emails may be substrings (that's how metricsFor matches), so compare loosely.
+  const known = config.authors.map((a) => (a.email || '').toLowerCase()).filter(Boolean);
+  const missing = discoverAuthors(git).filter((a) => !known.some((k) => a.email.includes(k) || k.includes(a.email)));
+  if (hasConfig && missing.length) {
+    console.log(`\n  ! ${missing.length} author(s) in git history are missing from the config and will NOT appear in the report:`);
+    for (const a of missing.slice(0, 10)) console.log(`      ${a.email.padEnd(34)} ${a.commits} commits  (${a.name})`);
+    if (missing.length > 10) console.log(`      …and ${missing.length - 10} more`);
+    console.log(`    Add them to "authors" in the config (or re-run init --force).`);
+  }
 
   // auto code-quality scan (blame-attributed) unless disabled
   let scanResult = null;
@@ -172,7 +185,7 @@ export async function build({ cwd, configPath, outPath, full, scan = true, secur
   for (const a of config.authors) {
     autoGrade[a.email] = { git: !a.gitGrade, code: !a.codeGrade && !!scanResult };
     if (!a.gitGrade) a.gitGrade = suggestGitGrade(metrics.get(a.email));
-    if (!a.codeGrade && scanResult) a.codeGrade = codeGradeFrom(scanResult.byEmail[a.email], metrics.get(a.email).added).grade;
+    if (!a.codeGrade && scanResult) a.codeGrade = codeGradeFrom(scanResult.byEmail[a.email], scanResult.linesByEmail[a.email] || 0).grade;
   }
   if (scanResult && (!config.issueMatrix || !config.issueMatrix.rows?.length)) {
     config.issueMatrix = matrixFromScan(scanResult, cardAuthors, pack.label);

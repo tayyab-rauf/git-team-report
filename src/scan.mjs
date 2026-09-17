@@ -11,13 +11,14 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createPathMatcher, hasInlineSuppression } from './ignore.mjs';
+import { createPathMatcher, hasInlineSuppression, GENERATED_EXCLUDE, isMinified } from './ignore.mjs';
 
 /** Default smell rules. Each: key, label, regex, optional path include/exclude. */
 export const DEFAULT_RULES = [
   { key: 'any',     label: '<code>any</code> types',      re: /(:\s*any\b|\bas any\b|<any>)/ },
   { key: 'console', label: '<code>console.*</code>',      re: /\bconsole\.(log|error|warn|info|debug)\b/,
-    pathExclude: /(server|main|bootstrap|\.spec\.|polyfills)/i },
+    // console IS the output of a CLI/build script — a smell only in app code
+    pathExclude: /(server|main|bootstrap|\.spec\.|polyfills)|(^|\/)(scripts|tools)\//i },
   { key: 'subs',    label: 'Bare subscriptions',          re: /\.subscribe\(/ },
   { key: 'dom',     label: 'Unguarded DOM',               re: /\b(window|document)\.(?!.*isPlatformBrowser)/,
     pathExclude: /(server|main|bootstrap)/i },
@@ -26,7 +27,7 @@ export const DEFAULT_RULES = [
 ];
 
 export const DEFAULT_GLOBS = ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs"];
-const DEFAULT_EXCLUDE = /(node_modules|\.spec\.|\.d\.ts$|\.test\.|dist\/|\.min\.)/;
+const DEFAULT_EXCLUDE = GENERATED_EXCLUDE;
 const LARGE_FILE_LINES = 200;
 
 /** Parse `git blame --line-porcelain` → array where index i = author email of output line i. */
@@ -44,9 +45,11 @@ function blameEmails(git, file) {
 
 /**
  * Scan the repo. Returns:
- *   { byEmail: { email: { any: n, console: n, ... , large: n } }, rules, files, largeFiles }
- * Only blames a file when it actually contains a hit (lazy + cached), so cost
- * scales with smells found, not repo size.
+ *   { byEmail: { email: {any,console,…,large} }, linesByEmail, rules, files, largeFiles }
+ * `linesByEmail` is how many HEAD lines each author currently owns — the honest
+ * denominator for smell density (see codeGradeFrom).
+ * ponytail: one `git blame` per source file. That's the cost of knowing who owns
+ * what; batch it (or sample) only if a huge repo makes builds painful.
  */
 export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOBS, onProgress, disabledRules = [], excludePaths = [] } = {}) {
   const pathExcluded = createPathMatcher(excludePaths);
@@ -56,6 +59,7 @@ export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOB
     .split('\n').filter(Boolean).filter((f) => !DEFAULT_EXCLUDE.test(f) && !pathExcluded(f));
 
   const byEmail = {};
+  const linesByEmail = {};
   const bump = (email, key, n = 1) => {
     byEmail[email] ??= {};
     byEmail[email][key] = (byEmail[email][key] || 0) + n;
@@ -66,8 +70,9 @@ export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOB
     let content;
     try { content = readFileSync(join(cwd, file), 'utf8'); } catch { continue; }
     const lines = content.split('\n');
-    let blame = null; // lazily fetched on first hit in this file
-    const ensureBlame = () => (blame ??= blameEmails(git, file));
+    if (isMinified(lines)) continue; // generated/minified — not anyone's handwriting
+    const blame = blameEmails(git, file);
+    for (const e of blame) linesByEmail[e] = (linesByEmail[e] || 0) + 1;
 
     for (const rule of activeRules) {
       if (rule.pathInclude && !rule.pathInclude.test(file)) continue;
@@ -77,7 +82,7 @@ export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOB
         const prevLine = i > 0 ? lines[i - 1] : '';
         if (hasInlineSuppression(line, prevLine)) continue;
         if (rule.re.test(line)) {
-          const em = ensureBlame()[i] || 'unknown';
+          const em = blame[i] || 'unknown';
           bump(em, rule.key);
         }
       }
@@ -86,10 +91,9 @@ export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOB
     // large-file smell → attributed to the file's majority-blame author
     if (lines.length > LARGE_FILE_LINES && !disabledRules.includes('large')) {
       largeFiles++;
-      const em = ensureBlame();
-      if (em.length) {
+      if (blame.length) {
         const tally = {};
-        for (const e of em) tally[e] = (tally[e] || 0) + 1;
+        for (const e of blame) tally[e] = (tally[e] || 0) + 1;
         const owner = Object.entries(tally).sort((a, b) => b[1] - a[1])[0][0];
         bump(owner, 'large');
       }
@@ -103,10 +107,14 @@ export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOB
     ? activeRules
     : [...activeRules, { key: 'large', label: `Files &gt; ${LARGE_FILE_LINES} lines` }];
 
-  return { byEmail, rules: resultRules, files: listed.length, largeFiles };
+  return { byEmail, linesByEmail, rules: resultRules, files: listed.length, largeFiles };
 }
 
-/** Weighted score normalized by volume density → a Code grade. */
+/**
+ * Weighted score normalized by volume density → a Code grade.
+ * `linesAttributed` must be the lines the author OWNS at HEAD (scan.linesByEmail),
+ * not lines they ever added: churn and committed lockfiles are not code quality.
+ */
 export function codeGradeFrom(counts = {}, linesAttributed = 0) {
   const w = {
     any: 2, console: 3, subs: 1, dom: 2, todo: 1, nonnull: 1, large: 2,

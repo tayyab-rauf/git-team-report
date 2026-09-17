@@ -10,6 +10,19 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+/**
+ * Vendored, generated, and build output — not the team's code, so neither scanner
+ * should attribute it to anyone. Shared by scan.mjs and security.mjs: the security
+ * scanner had this list and the code scanner did not, which is how a minified
+ * charting bundle under src/assets/ produced hundreds of "smells" blamed on
+ * whoever committed the vendor drop.
+ */
+export const GENERATED_EXCLUDE = /(node_modules|\.spec\.|\.test\.|\.d\.ts$|dist\/|build\/|coverage\/|\.min\.|\.bundle\.|package-lock|\.map$|\/assets\/|charting_library|tradingview|vendor\/|polyfill)/i;
+
+/** Generated files have absurdly long lines; a file with one is not hand-written. */
+export const MINIFIED_LINE = 2000;
+export const isMinified = (lines) => lines.some((l) => l.length > MINIFIED_LINE);
+
 /** Convert a glob pattern to RegExp */
 function globToRegex(pattern) {
   let p = pattern.trim().replace(/\\/g, '/');

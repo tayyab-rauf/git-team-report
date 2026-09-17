@@ -12,15 +12,21 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
 import { runSemgrep } from './semgrep.mjs';
-import { createPathMatcher, hasInlineSuppression, isSampleOrDocComment } from './ignore.mjs';
+import { createPathMatcher, hasInlineSuppression, isSampleOrDocComment, GENERATED_EXCLUDE, isMinified } from './ignore.mjs';
 
-export const SECURITY_GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.html', '*.vue'];
-// Exclude tests, type decls, build output, and — critically — vendored/generated
-// assets (charting libs, polyfills, bundles). Those are minified third-party code
-// and produce almost nothing but false positives.
-const EXCLUDE = /(node_modules|\.spec\.|\.test\.|\.d\.ts$|dist\/|build\/|coverage\/|\.min\.|\.bundle\.|package-lock|\.map$|\/assets\/|charting_library|tradingview|vendor\/|polyfill)/i;
-// Minified/generated files have absurdly long lines — skip them entirely.
-const MINIFIED_LINE = 2000;
+/**
+ * Files that carry secrets regardless of the repo's language: env files, config,
+ * CI/deploy scripts, IaC. Every language pack scans these in addition to its own
+ * source globs — a leaked credential is not a TypeScript problem.
+ */
+export const CONFIG_GLOBS = [
+  '*.env*', '*.json', '*.yml', '*.yaml', '*.properties', '*.ini', '*.cfg',
+  '*.conf', '*.toml', '*.sh', '*.xml', '*Dockerfile*', '*.tf',
+];
+export const SECURITY_GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.html', '*.vue', ...CONFIG_GLOBS];
+// Tests, type decls, build output, and vendored/generated assets live in
+// ignore.mjs GENERATED_EXCLUDE — shared with the code scanner.
+const EXCLUDE = GENERATED_EXCLUDE;
 
 /**
  * Each rule: { id, vector, severity, re, fix, review?, pathInclude?, pathExclude? }
@@ -36,10 +42,18 @@ export const SECURITY_RULES = [
     fix: 'Dynamic RegExp from variables is risky if the source is user-controlled. Validate/escape the input and bound its length.' },
 
   // 2 — Secret / credential leakage
+  // Identifiers carry prefixes/suffixes (DB_PASSWORD, myApiKey) and JSON quotes its
+  // keys ("client_secret": …) — anchoring on \b at both ends missed all of that.
   { id: 'secret-assign', vector: 'Secrets', severity: 'High', review: true,
-    re: /\b(api[_-]?key|secret|passwd|password|token|client[_-]?secret|private[_-]?key)\b\s*[:=]\s*['"][^'"]{12,}['"]/i,
+    re: /[A-Za-z0-9_-]*(api[_-]?key|secret|passwd|password|token|credentials?|private[_-]?key)[A-Za-z0-9_-]*["']?\s*[:=]\s*['"][^'"]{12,}['"]/i,
     pathExclude: /\.html$/,
     fix: 'Move to an env var / secret manager; never commit literal secrets. Rotate anything that was committed.' },
+  // .env / .properties / shell values are usually unquoted, so the rule above cannot
+  // see them. Scoped to config files, and skips references ($VAR, ${{ secrets.X }}).
+  { id: 'secret-config-assign', vector: 'Secrets', severity: 'High', review: true,
+    re: /[A-Za-z0-9_-]*(api[_-]?key|secret|passwd|password|token|credentials?)[A-Za-z0-9_-]*\s*[:=]\s*(?!["'\s$#{<%])[^\s"'#]{12,}/i,
+    pathInclude: /\.(env|properties|ini|cfg|conf|toml|ya?ml|sh)(\.|$)|(^|\/)\.env/i,
+    fix: 'Move the value to a secret manager and reference it ($VAR / vault lookup). Rotate anything that was committed.' },
   { id: 'secret-privkey', vector: 'Secrets', severity: 'High',
     re: /-----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/,
     fix: 'Remove the private key from the repo and rotate it immediately.' },
@@ -119,7 +133,7 @@ export function scanSecurity(git, cwd, { rules = SECURITY_RULES, globs = SECURIT
   for (const file of listed) {
     let lines;
     try { lines = readFileSync(join(cwd, file), 'utf8').split('\n'); } catch { continue; }
-    if (lines.some((l) => l.length > MINIFIED_LINE)) { scanned++; continue; } // minified/generated — skip
+    if (isMinified(lines)) { scanned++; continue; } // minified/generated — skip
     let blame = null; // lazily blamed on first hit, then reused for this file
     const ensureBlame = () => (blame ??= blameAuthors(git, file));
     for (const rule of activeRules) {
@@ -148,7 +162,17 @@ export function scanSecurity(git, cwd, { rules = SECURITY_RULES, globs = SECURIT
   let secretsEngine = 'built-in patterns (working tree only)';
   if (gitleaks) {
     const gl = runGitleaks(cwd);
-    if (gl) { byVector['Secrets'] = gl.findings; secretsEngine = `gitleaks ${gl.version} (full git history)`; }
+    if (gl) {
+      // AUGMENT, never replace: gitleaks knows entropy + history, but it does not
+      // know our rules (weak password encoders, private env vars reaching the
+      // browser). Assigning over byVector.Secrets silently dropped those.
+      const glLines = new Set(gl.findings.map((f) => `${f.file}:${f.line}`));
+      byVector['Secrets'] = [
+        ...(byVector['Secrets'] || []).filter((f) => !glLines.has(`${f.file}:${f.line}`)),
+        ...gl.findings,
+      ];
+      secretsEngine = `gitleaks ${gl.version} (full git history) + built-in rules`;
+    }
   }
 
   // SAST vectors: augment with Semgrep when opted in and installed.

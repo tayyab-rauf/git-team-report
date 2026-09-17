@@ -43,7 +43,8 @@ src/
   semgrep.mjs      Optional Semgrep (SAST) runner; maps results into vectors; blame attrib.
   languages.mjs    Per-language rule PACKS (typescript/java/flutter/generic) + auto-detect.
   ignore.mjs       Path exclusion matching (glob wildcards), .git-team-reportignore loader,
-                   and inline comment directives (git-team-report-ignore).
+                   inline comment directives (git-team-report-ignore), and the shared
+                   GENERATED_EXCLUDE / isMinified() used by BOTH scanners.
   tools.mjs        Detect + (with consent) install gitleaks/semgrep; interactive prompt.
   render.mjs       STYLE (GitHub-themed CSS) + renderReport(): the whole HTML page,
                    incl. the tabbed Security section.
@@ -61,13 +62,20 @@ Module dependency direction: `commands.mjs` → {collect, scan, security(→semg
 
 **`build`** (`commands.build`, async):
 1. Load config file if present, else `synthConfig(git)` (authors from `git shortlog`).
-2. `resolvePack(git, lang || config.language)` → language pack (auto-detected by dominant
-   file extension unless forced).
+2. `resolvePack(git, lang || config.language)` → language pack. Auto mode merges every
+   detected language's pack **plus `generic`** (`mergePacks`); each pack's rules are
+   scoped to its own globs so they can't cross-fire. `--lang`/`config.language` forces one.
 3. Load ignore patterns from config `excludePaths`, `.git-team-reportignore`, and `--exclude`.
-4. Per author: `metricsFor(git, email, { excludePatterns })` → commits/lines/conv/mi/cadence/lastActive.
+4. Per author: `metricsFor(git, email, { excludePatterns, since })` → commits/lines/conv/mi/
+   cadence/lastActive. `since` = `config.period.start`, so the header's window is the
+   window the numbers describe. Authors in git but absent from the config are printed as a
+   warning (they'd otherwise vanish from the report entirely).
 5. If `scan`: `scanCode(git, cwd, {rules: pack.codeRules, globs: pack.codeGlobs, disabledRules, excludePaths})` →
-   blame-attributed smell counts → `matrixFromScan` (only if config has no issueMatrix).
-6. Fill blank grades: git via `suggestGitGrade`, code via `codeGradeFrom(counts, linesAttributed)` (density-based, marked auto `*`).
+   blame-attributed smell counts + `linesByEmail` (lines each author owns at HEAD) →
+   `matrixFromScan` (only if config has no issueMatrix).
+6. Fill blank grades: git via `suggestGitGrade`, code via `codeGradeFrom(counts, scan.linesByEmail[email])`
+   — density per line **owned**, not per line ever added, so lockfiles and churn can't
+   launder a grade (density-based, marked auto `*`).
 7. If `doSecurity`: `ensureTool('gitleaks')` (+ `ensureTool('semgrep')` if `--semgrep`),
    then `scanSecurity(..., {disabledRules, excludePaths})`. Post-processes Firebase web keys to Low and filters sample comments.
 8. `renderReport(config, metrics, {repoName, throughDate, security})` → write HTML (honors `hideGrades`).
@@ -115,18 +123,24 @@ else generic). Override via `--lang` or `config.language`.
 define code rules (`{key,label,re,pathInclude?,pathExclude?}`) and security rules
 (`{id,vector,severity,re,fix,review?,pathInclude?,pathExclude?}` where vector ∈ the six),
 and add weights for its code-rule `key`s in `scan.js codeGradeFrom`. Reuse `SECRET_RULES`
-for secrets. Keep regexes conservative (grep-level; false positives erode trust).
+for secrets and spread `CONFIG_GLOBS` into `secGlobs` (env/config/IaC files carry secrets
+in every language). Keep regexes conservative (grep-level; false positives erode trust).
 
 Rules run per-line only on files matched by the pack's globs, so language rules don't
-cross-contaminate.
+cross-contaminate. `mergePacks` preserves that by rewriting each rule's `pathInclude` to
+a matcher over its own pack's globs (`pathInclude` is only ever consumed as `.test(file)`,
+so a `{test}` object is a valid one); same-key rules across packs are merged into one row
+with an OR'd scope.
 
 ---
 
 ## 7. Optional external engines
 
 - **gitleaks** (Secrets vector): auto-used if on PATH (`security.mjs runGitleaks`). Scans
-  full git history, `--redact`, maps commit author. Falls back to built-in secret regexes.
-  `--no-gitleaks` forces fallback. NOTE: gitleaks reports **per-commit occurrences**, so a
+  full git history, `--redact`, maps commit author. It **augments** the built-in rules —
+  never assign over `byVector.Secrets`, that silently dropped `java-weak-hash` and
+  `secret-nonpublic-env`. Same-`file:line` duplicates are dropped. `--no-gitleaks` forces
+  built-ins only. NOTE: gitleaks reports **per-commit occurrences**, so a
   long-lived secret shows many times — counts look inflated. A dedupe-by-rule+file option
   is a known TODO.
 - **Semgrep** (SAST): **opt-in** `--semgrep` (heavier, fetches rule packs). `semgrep.mjs`
@@ -178,7 +192,14 @@ always shown — never color-only encoding. Keep it CSP-safe: inline everything,
 - **gitleaks per-commit dedupe** implemented in `src/security.mjs` by unique finding signature `(RuleID:File:StartLine:Match)`.
 - **Semgrep Dart support** is weak.
 - **Grades are heuristic** first-passes; the config is meant to override them.
-- Cross-language repos use the single dominant pack (no per-language merge yet).
+- `period.start` past ~2038 silently fails git's date parser, so the window is dropped.
+- Vendored/generated code (`/assets/`, `vendor/`, `.bundle.`, minified) is excluded from
+  **both** scanners via `ignore.mjs GENERATED_EXCLUDE` + `isMinified()`. It used to be
+  security-only, so a minified charting bundle scored hundreds of code smells against
+  whoever committed it (real case: 102 `console.*` where the source had 7). If you add a
+  scanner, use that list — don't write a second one.
+- Merged packs scan every language, but `detectLanguage` only *counts* ts/java/dart —
+  a Python-only repo resolves to `generic` (TODO + secrets), which is by design.
 
 ---
 

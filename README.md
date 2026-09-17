@@ -58,16 +58,22 @@ that ran but found nothing shows as "clean"). Tabs are pure CSS (no JS).
 
 > These are **signals, not confirmed vulnerabilities.** Grep finds the sink; it can't
 > tell if the input is attacker-controlled, length-bounded, or sanitized downstream.
-> Findings that need that judgment are marked _(review)_. Vendored/minified files
-> (charting libs, bundles, `assets/`) are skipped to keep the report about *your* code.
+> Findings that need that judgment are marked _(review)_.
 
 **Secrets use [gitleaks](https://github.com/gitleaks/gitleaks) when available.** If the
-`gitleaks` binary is on `PATH`, the Secrets vector is delegated to it automatically —
-150+ curated rules, entropy detection, and a scan of the **full git history** (catches
-secrets in old commits, not just the working tree), with the introducing commit's author.
-Runs with `--redact`, so raw secrets never enter the report. No gitleaks installed →
-falls back to the built-in patterns (working tree only). Force the fallback with
-`--no-gitleaks`. The report states which engine ran.
+`gitleaks` binary is on `PATH`, it *augments* the Secrets vector — 150+ curated rules,
+entropy detection, and a scan of the **full git history** (catches secrets in old
+commits, not just the working tree), with the introducing commit's author. The built-in
+rules keep running alongside it, since they catch things gitleaks does not (weak password
+encoders, private env vars reaching the browser bundle); findings on the same line are
+deduplicated. Runs with `--redact`, so raw secrets never enter the report. No gitleaks
+installed → built-in patterns only (working tree). Force that with `--no-gitleaks`. The
+report states which engines ran.
+
+**Secrets are hunted outside source too.** Every pack also scans `.env*`, `.json`,
+`.yml`/`.yaml`, `.properties`, `.ini`/`.cfg`/`.conf`, `.toml`, `.xml`, `.sh`, `.tf` and
+`Dockerfile*` — quoted (`API_KEY="…"`) and unquoted (`API_KEY=…`) forms both. References
+like `$VAR` and `${{ secrets.X }}` are not flagged.
 
 **Deeper SAST via [Semgrep](https://semgrep.dev) — opt-in.** Pass `--semgrep` and, if the
 `semgrep` binary is installed, its findings are mapped into the report's vectors
@@ -86,9 +92,19 @@ question with `--no-prompt`; auto-install without asking (e.g. in a script) with
 
 ### Language packs
 
+**Both scanners skip code you didn't write.** `node_modules`, `dist/`, `build/`,
+`coverage/`, `vendor/`, `assets/`, `.bundle.`/`.min.` files, source maps, lockfiles and
+anything with a line over 2,000 characters (i.e. minified) are excluded before blame runs
+— otherwise a vendored bundle scores hundreds of "smells" against whoever committed it.
+`console.*` is also not counted under `scripts/` or `tools/`, where printing is the point.
+Anything else project-specific belongs in `excludePaths` or `.git-team-reportignore`.
+
 The code-quality and security scanners are **language-aware**. On each run the tool
-detects the repo's dominant source language and loads the matching rule pack; force
-one with `--lang`.
+detects *every* language present in the repo and merges their packs, so a polyglot repo
+is fully scanned rather than only its dominant language — each pack's rules stay scoped
+to that pack's files, so Java rules never fire inside `.ts`. The `generic` pack is always
+included, which is what covers Python/Go/Ruby/… files and the config files above. Force a
+single pack with `--lang`.
 
 | Pack (`--lang`) | Detected by | Code-quality rules | Security rules |
 |---|---|---|---|
@@ -148,7 +164,7 @@ not a verdict (grading stays a human call).
 ```jsonc
 {
   "meta":   { "heading": "...", "callout": "<html>" },
-  "period": { "start": "YYYY-MM-DD" },
+  "period": { "start": "YYYY-MM-DD" },   // bounds every git number in the report
   "excludePaths": ["legacy/**", "vendor/**"],
   "disabledRules": [],
   "hideGrades": false,
