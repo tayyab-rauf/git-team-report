@@ -54,7 +54,7 @@ export function metricsFor(git, email) {
   const commits = parseInt(git(`rev-list --all --count --author="${esc}"`) || '0', 10);
   const subjects = git(`log --all --author="${esc}" --format=%s`).split('\n').filter(Boolean);
   const conv = subjects.filter((s) => CONV_RE.test(s)).length;
-  const mi = subjects.filter((s) => /MI-\d+/.test(s)).length;
+  const mi = subjects.filter((s) => /([A-Za-z]{2,}-\d+|#\d+)/.test(s)).length;
 
   let added = 0, deleted = 0;
   for (const line of git(`log --all --author="${esc}" --pretty=tformat: --numstat`).split('\n')) {

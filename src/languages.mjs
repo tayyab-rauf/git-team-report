@@ -73,7 +73,7 @@ export const LANGUAGES = {
     codeGlobs: GENERIC_CODE_GLOBS, codeRules: GENERIC_CODE, secGlobs: GENERIC_SEC_GLOBS, secRules: SECRET_RULES },
 };
 
-const EXT_LANG = { ts: 'typescript', tsx: 'typescript', java: 'java', dart: 'flutter' };
+const EXT_LANG = { ts: 'typescript', tsx: 'typescript', js: 'typescript', jsx: 'typescript', mjs: 'typescript', cjs: 'typescript', java: 'java', dart: 'flutter' };
 
 /** Count tracked files per known language and return the dominant one. */
 export function detectLanguage(git) {

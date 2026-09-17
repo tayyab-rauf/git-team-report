@@ -24,7 +24,7 @@ export const DEFAULT_RULES = [
   { key: 'nonnull', label: 'Non-null <code>!.</code>',    re: /[\w\)\]]!\./ },
 ];
 
-export const DEFAULT_GLOBS = ["*.ts", "*.tsx"];
+export const DEFAULT_GLOBS = ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs"];
 const DEFAULT_EXCLUDE = /(node_modules|\.spec\.|\.d\.ts$|\.test\.|dist\/|\.min\.)/;
 const LARGE_FILE_LINES = 200;
 

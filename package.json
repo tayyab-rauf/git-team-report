@@ -13,7 +13,11 @@
     "README.md",
     "LICENSE"
   ],
+  "exports": {
+    ".": "./src/commands.mjs"
+  },
   "scripts": {
+    "test": "node bin/cli.mjs build --config config/config.example.json --out examples/report.html",
     "demo": "node bin/cli.mjs build --config config/config.example.json --out examples/report.html"
   },
   "engines": {
