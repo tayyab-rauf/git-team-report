@@ -111,6 +111,10 @@ one with `--lang`.
 | `build` | Pull live metrics, auto-scan code quality, render the HTML, print the delta |
 | `security` | Scan the 6 vulnerability vectors → structured Markdown report |
 | `--no-scan` | (`build`) skip the code-quality blame scan (git stats only) |
+| `--no-security` | (`build`) skip the security scan section in the HTML report |
+| `--no-grades` | omit letter grade badges from the report (cards & tables) |
+| `--exclude <pattern>` | exclude paths from line stats & scans (e.g. `legacy/**`, `vendor/**`) |
+| `--disable-rule <id>` | disable a specific smell or security rule (e.g. `lpdos-file`) |
 | `--lang <id>` | force a language pack: `typescript` / `java` / `flutter` / `generic` |
 | `--no-gitleaks` | force built-in secret patterns even if gitleaks is installed |
 | `--semgrep` | also run Semgrep SAST (needs semgrep installed; slower) |
@@ -119,6 +123,12 @@ one with `--lang`.
 | `--out <file>` | Output HTML path (default: `./git-team-report.html`) |
 | `--full` | Ignore the saved footprint; recompute from the period start |
 | `--force` | (`init`) overwrite an existing config |
+
+### Exclusions and Inline Suppression
+
+- **Path exclusions**: Add `"excludePaths": ["legacy/**", "vendor/**"]` to `git-team-report.config.json`, or create a `.git-team-reportignore` file in your repository root.
+- **Rule disabling**: Add `"disabledRules": ["java-mutation", "lpdos-file"]` to your config.
+- **Inline suppression**: Add `// git-team-report-ignore` or `<!-- git-team-report-ignore -->` (or `git-team-report-disable-next-line`) to suppress findings on a specific line.
 
 ## How it splits work (why it's cheap)
 
@@ -139,6 +149,9 @@ not a verdict (grading stays a human call).
 {
   "meta":   { "heading": "...", "callout": "<html>" },
   "period": { "start": "YYYY-MM-DD" },
+  "excludePaths": ["legacy/**", "vendor/**"],
+  "disabledRules": [],
+  "hideGrades": false,
   "authors": [
     { "email": "a@x.com", "name": "A B", "short": "a@",
       "domain": "what they own", "gitGrade": "B", "codeGrade": "A-",

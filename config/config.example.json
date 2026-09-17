@@ -6,6 +6,9 @@
     "callout": "Git numbers are pulled live by <code>git-team-report</code>; grades &amp; code findings come from the config file. Ship-blockers were verified against HEAD. To refresh: rerun <code>git-team-report build</code>."
   },
   "period": { "start": "2026-05-11" },
+  "excludePaths": ["legacy/**", "vendor/**"],
+  "disabledRules": [],
+  "hideGrades": false,
   "authors": [
     { "email": "y.alam@globalfinancialmedia.com",      "name": "Yasir Alam",    "short": "y.alam@",       "domain": "layout · features · shared · bff — widest surface, active cleanup", "gitGrade": "B",  "codeGrade": "B" },
     { "email": "arslan.ahmad@globalfinancialmedia.com", "name": "Arslan Ahmad",  "short": "arslan.ahmad@", "domain": "shared-auth · market-talks · BFF auth",                          "gitGrade": "B",  "codeGrade": "C+" },

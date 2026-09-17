@@ -37,11 +37,13 @@ bin/cli.mjs        Arg parsing + command dispatch (init | build | security). Ent
 src/
   collect.mjs      Live git metrics per author; git-grade heuristic; author discovery.
   scan.mjs         Code-quality smell scan (grep + git blame attribution); code-grade
-                   heuristic; issue-matrix builder. Exports DEFAULT_RULES/DEFAULT_GLOBS (TS).
+                   heuristic (density-based); issue-matrix builder. Exports DEFAULT_RULES/DEFAULT_GLOBS (TS).
   security.mjs     6-vector security signal scan; built-in rules; gitleaks integration
                    (Secrets vector); SECURITY_GLOBS/SECRET_RULES exports; Markdown report.
   semgrep.mjs      Optional Semgrep (SAST) runner; maps results into vectors; blame attrib.
   languages.mjs    Per-language rule PACKS (typescript/java/flutter/generic) + auto-detect.
+  ignore.mjs       Path exclusion matching (glob wildcards), .git-team-reportignore loader,
+                   and inline comment directives (git-team-report-ignore).
   tools.mjs        Detect + (with consent) install gitleaks/semgrep; interactive prompt.
   render.mjs       STYLE (GitHub-themed CSS) + renderReport(): the whole HTML page,
                    incl. the tabbed Security section.
@@ -51,7 +53,7 @@ report/…           (present in the origin repo's history; the live editorial l
 README.md          User docs.  GUIDE.md  Teammate quick-start.
 ```
 
-Module dependency direction: `commands.mjs` → {collect, scan, security(→semgrep), languages(→scan,security), tools, render}. `languages.mjs` imports the TS defaults from scan/security to build the `typescript` pack — do NOT create a cycle back from scan/security into languages.
+Module dependency direction: `commands.mjs` → {collect, scan, security(→semgrep), languages(→scan,security), tools, render, ignore}. `languages.mjs` imports the TS defaults from scan/security to build the `typescript` pack — do NOT create a cycle back from scan/security into languages.
 
 ---
 
@@ -61,16 +63,17 @@ Module dependency direction: `commands.mjs` → {collect, scan, security(→semg
 1. Load config file if present, else `synthConfig(git)` (authors from `git shortlog`).
 2. `resolvePack(git, lang || config.language)` → language pack (auto-detected by dominant
    file extension unless forced).
-3. Per author: `metricsFor(git, email)` → commits/lines/conv/mi/cadence/lastActive.
-4. If `scan`: `scanCode(git, cwd, {rules: pack.codeRules, globs: pack.codeGlobs})` →
+3. Load ignore patterns from config `excludePaths`, `.git-team-reportignore`, and `--exclude`.
+4. Per author: `metricsFor(git, email, { excludePatterns })` → commits/lines/conv/mi/cadence/lastActive.
+5. If `scan`: `scanCode(git, cwd, {rules: pack.codeRules, globs: pack.codeGlobs, disabledRules, excludePaths})` →
    blame-attributed smell counts → `matrixFromScan` (only if config has no issueMatrix).
-5. Fill blank grades: git via `suggestGitGrade`, code via `codeGradeFrom` (marked auto `*`).
-6. If `doSecurity`: `ensureTool('gitleaks')` (+ `ensureTool('semgrep')` if `--semgrep`),
-   then `scanSecurity(...)`.
-7. `renderReport(config, metrics, {repoName, throughDate, security})` → write HTML.
-8. Write footprint `.git-team-report/state.json`; print the delta since last compile.
+6. Fill blank grades: git via `suggestGitGrade`, code via `codeGradeFrom(counts, linesAttributed)` (density-based, marked auto `*`).
+7. If `doSecurity`: `ensureTool('gitleaks')` (+ `ensureTool('semgrep')` if `--semgrep`),
+   then `scanSecurity(..., {disabledRules, excludePaths})`. Post-processes Firebase web keys to Low and filters sample comments.
+8. `renderReport(config, metrics, {repoName, throughDate, security})` → write HTML (honors `hideGrades`).
+9. Write footprint `.git-team-report/state.json`; print the delta since last compile.
 
-**`security`** = steps 2 + 6 + `securityMarkdown` → `security-scan.md`.
+**`security`** = steps 2 + 7 + `securityMarkdown` → `security-scan.md`.
 
 **Footprint / incremental delta:** `state.json` stores `compiledDate` + a per-author
 snapshot. Each run recomputes numbers fully (git is fast) but prints only what changed
@@ -84,7 +87,8 @@ since `compiledDate` — that's the token/time saver, not a correctness mechanis
 - `build` — team + code-quality + security → `git-team-report.html`.
 - `security` — 6-vector scan → `security-scan.md`.
 - Flags: `--cwd`, `--config`, `--out`, `--full` (ignore footprint), `--no-scan`,
-  `--no-security`, `--lang <typescript|java|flutter|generic>`, `--no-gitleaks`,
+  `--no-security`, `--no-grades`, `--exclude <pattern>`, `--disable-rule <id>`,
+  `--lang <typescript|java|flutter|generic>`, `--no-gitleaks`,
   `--semgrep`, `--install-tools` (auto-yes), `--no-prompt`.
 
 ---
@@ -92,9 +96,9 @@ since `compiledDate` — that's the token/time saver, not a correctness mechanis
 ## 5. Config schema (the editorial layer)
 
 See `config/config.example.json`. Keys: `meta{title,heading,sidebarTitle,callout}`,
-`period.start`, `language`, `authors[{email,name,short,domain,gitGrade,codeGrade,
-highlight,badge{kind:up|tick|warn,text},hideFromCards}]`, `issueMatrix{columns,rows,
-note,footnote}`, `shipBlockers[{id,sev:crit|high|med,path,desc,owner}]`,
+`period.start`, `language`, `excludePaths[]`, `disabledRules[]`, `hideGrades: boolean`,
+`authors[{email,name,short,domain,gitGrade,codeGrade,highlight,badge{kind:up|tick|warn,text},hideFromCards}]`,
+`issueMatrix{columns,rows,note,footnote}`, `shipBlockers[{id,sev:crit|high|med,path,desc,owner}]`,
 `members{<email>:{headline,note,sections[{h4,items[]}]}}`, `actions[{tier:t1|t2|t3|t0,
 title,items[{text,owner}]}]`. Author match is by `email` substring against git.
 `desc/text/items` accept inline HTML (emitted as-is; escape untrusted input).
