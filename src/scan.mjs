@@ -11,6 +11,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createPathMatcher, hasInlineSuppression } from './ignore.mjs';
 
 /** Default smell rules. Each: key, label, regex, optional path include/exclude. */
 export const DEFAULT_RULES = [
@@ -47,9 +48,12 @@ function blameEmails(git, file) {
  * Only blames a file when it actually contains a hit (lazy + cached), so cost
  * scales with smells found, not repo size.
  */
-export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOBS, onProgress } = {}) {
+export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOBS, onProgress, disabledRules = [], excludePaths = [] } = {}) {
+  const pathExcluded = createPathMatcher(excludePaths);
+  const activeRules = rules.filter((r) => !disabledRules.includes(r.key) && !disabledRules.includes(r.id));
+
   const listed = git(`ls-files -- ${globs.map((g) => `"${g}"`).join(' ')}`)
-    .split('\n').filter(Boolean).filter((f) => !DEFAULT_EXCLUDE.test(f));
+    .split('\n').filter(Boolean).filter((f) => !DEFAULT_EXCLUDE.test(f) && !pathExcluded(f));
 
   const byEmail = {};
   const bump = (email, key, n = 1) => {
@@ -65,11 +69,14 @@ export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOB
     let blame = null; // lazily fetched on first hit in this file
     const ensureBlame = () => (blame ??= blameEmails(git, file));
 
-    for (const rule of rules) {
+    for (const rule of activeRules) {
       if (rule.pathInclude && !rule.pathInclude.test(file)) continue;
       if (rule.pathExclude && rule.pathExclude.test(file)) continue;
       for (let i = 0; i < lines.length; i++) {
-        if (rule.re.test(lines[i])) {
+        const line = lines[i];
+        const prevLine = i > 0 ? lines[i - 1] : '';
+        if (hasInlineSuppression(line, prevLine)) continue;
+        if (rule.re.test(line)) {
           const em = ensureBlame()[i] || 'unknown';
           bump(em, rule.key);
         }
@@ -77,7 +84,7 @@ export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOB
     }
 
     // large-file smell → attributed to the file's majority-blame author
-    if (lines.length > LARGE_FILE_LINES) {
+    if (lines.length > LARGE_FILE_LINES && !disabledRules.includes('large')) {
       largeFiles++;
       const em = ensureBlame();
       if (em.length) {
@@ -92,11 +99,15 @@ export function scanCode(git, cwd, { rules = DEFAULT_RULES, globs = DEFAULT_GLOB
     if (onProgress && scanned % 50 === 0) onProgress(scanned, listed.length);
   }
 
-  return { byEmail, rules: [...rules, { key: 'large', label: `Files &gt; ${LARGE_FILE_LINES} lines` }], files: listed.length, largeFiles };
+  const resultRules = disabledRules.includes('large')
+    ? activeRules
+    : [...activeRules, { key: 'large', label: `Files &gt; ${LARGE_FILE_LINES} lines` }];
+
+  return { byEmail, rules: resultRules, files: listed.length, largeFiles };
 }
 
-/** Weighted score → a Code grade. Transparent heuristic; a config grade overrides it. */
-export function codeGradeFrom(counts = {}) {
+/** Weighted score normalized by volume density → a Code grade. */
+export function codeGradeFrom(counts = {}, linesAttributed = 0) {
   const w = {
     any: 2, console: 3, subs: 1, dom: 2, todo: 1, nonnull: 1, large: 2,
     // java
@@ -105,10 +116,23 @@ export function codeGradeFrom(counts = {}) {
     print: 2, nullassert: 1, ignore: 1,
   };
   const score = Object.entries(counts).reduce((s, [k, n]) => s + (w[k] || 1) * n, 0);
-  const bands = [[0, 'A'], [3, 'A-'], [8, 'B+'], [16, 'B'], [28, 'B-'], [45, 'C+'], [70, 'C'], [110, 'C-']];
+  // Density per 1,000 lines (KLOC) with a 500-line smoothing denominator
+  const density = (score / (Math.max(0, linesAttributed) + 500)) * 1000;
+  const bands = [
+    [1.5, 'A'],
+    [3.5, 'A-'],
+    [6.0, 'B+'],
+    [10.0, 'B'],
+    [15.0, 'B-'],
+    [22.0, 'C+'],
+    [30.0, 'C'],
+    [40.0, 'C-'],
+  ];
   let grade = 'D';
-  for (const [max, g] of bands) if (score <= max) { grade = g; break; }
-  return { grade, score };
+  for (const [max, g] of bands) {
+    if (density <= max) { grade = g; break; }
+  }
+  return { grade, score, density };
 }
 
 /** Build a render-ready issueMatrix from scan results for the given authors. */

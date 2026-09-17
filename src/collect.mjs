@@ -89,7 +89,12 @@ export function commitsSince(git, email, sinceDate) {
  * into the report on its own.
  */
 export function suggestGitGrade({ commits, convPct, miPct }) {
-  let score = 15 + (convPct / 100) * 40 + (miPct / 100) * 30 + Math.min(commits / 50, 1) * 15;
+  const baseScore = 20;
+  const volumeScore = Math.min(commits / 30, 1) * 35; // up to 35 pts for sustained work
+  const convScore = (convPct / 100) * 25;             // up to 25 pts
+  const miScore = (miPct / 100) * 20;                 // up to 20 pts
+  const score = baseScore + volumeScore + convScore + miScore;
+
   const bands = [[80, 'A'], [72, 'A-'], [66, 'B+'], [58, 'B'], [52, 'B-'], [46, 'C+'], [40, 'C'], [34, 'C-']];
   for (const [min, g] of bands) if (score >= min) return g;
   return 'D';
