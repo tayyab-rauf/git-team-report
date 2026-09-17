@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
 import { runSemgrep } from './semgrep.mjs';
+import { createPathMatcher, hasInlineSuppression, isSampleOrDocComment } from './ignore.mjs';
 
 export const SECURITY_GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.html', '*.vue'];
 // Exclude tests, type decls, build output, and — critically — vendored/generated
@@ -55,7 +56,7 @@ export const SECURITY_RULES = [
     re: /bypassSecurityTrust(Html|Url|ResourceUrl|Script|Style)\s*\(/,
     fix: 'Avoid bypassing Angular sanitization on untrusted input. If unavoidable, sanitize/allowlist first and confine to trusted, non-user data.' },
   { id: 'xss-innerhtml', vector: 'Injection/XSS', severity: 'High', review: true,
-    re: /\.(innerHTML|outerHTML)\s*=|\[innerHTML\]|dangerouslySetInnerHTML|\bv-html\b/,
+    re: /\.(innerHTML|outerHTML)\s*=|dangerouslySetInnerHTML|\bv-html\b/,
     fix: 'Render via text binding, or sanitize with DomSanitizer / DOMPurify before injecting HTML.' },
   { id: 'xss-eval', vector: 'Injection/XSS', severity: 'High',
     re: /\beval\s*\(|new Function\s*\(|document\.write\s*\(/,
@@ -65,7 +66,7 @@ export const SECURITY_RULES = [
     fix: 'Validate/coerce request bodies with a schema before querying; reject objects where scalars are expected to block operator injection.' },
 
   // 4 — Large-Payload DoS
-  { id: 'lpdos-file', vector: 'LPDoS', severity: 'Medium', review: true,
+  { id: 'lpdos-file', vector: 'LPDoS', severity: 'Low', review: true,
     re: /type\s*=\s*['"]file['"]|new FileReader\(|\.files\[|readAs(DataURL|ArrayBuffer|Text)\(/,
     fix: 'Enforce a max File.size and count client-side before upload; reject oversized files before the network request. Also bound array/string lengths on rich inputs.' },
 
@@ -77,7 +78,7 @@ export const SECURITY_RULES = [
   // 6 — Replay / idempotency
   { id: 'replay-mutation', vector: 'Replay', severity: 'Low', review: true,
     re: /\.(post|put|patch|delete)\s*\(/i,
-    pathInclude: /(service|api|checkout|payment|reset|order|pay)/i,
+    pathInclude: /(checkout|payment|charge|billing|transfer|payout|refund)/i,
     fix: 'For sensitive mutations (payment/reset/checkout), add a client-generated idempotency key / nonce header and disable the trigger button while in flight.' },
 ];
 
@@ -104,9 +105,12 @@ function blameAuthors(git, file) {
 /** The secret-detection rules alone — reused by non-web language packs. */
 export const SECRET_RULES = SECURITY_RULES.filter((r) => r.vector === 'Secrets');
 
-export function scanSecurity(git, cwd, { rules = SECURITY_RULES, globs = SECURITY_GLOBS, onProgress, gitleaks = true, semgrep = false } = {}) {
+export function scanSecurity(git, cwd, { rules = SECURITY_RULES, globs = SECURITY_GLOBS, onProgress, gitleaks = true, semgrep = false, disabledRules = [], excludePaths = [] } = {}) {
+  const pathExcluded = createPathMatcher(excludePaths);
+  const activeRules = rules.filter((r) => !disabledRules.includes(r.id) && !disabledRules.includes(r.key));
+
   const listed = git(`ls-files -- ${globs.map((g) => `"${g}"`).join(' ')}`)
-    .split('\n').filter(Boolean).filter((f) => !EXCLUDE.test(f));
+    .split('\n').filter(Boolean).filter((f) => !EXCLUDE.test(f) && !pathExcluded(f));
 
   const byVector = {};
   for (const r of rules) (byVector[r.vector] ??= []);
@@ -118,15 +122,19 @@ export function scanSecurity(git, cwd, { rules = SECURITY_RULES, globs = SECURIT
     if (lines.some((l) => l.length > MINIFIED_LINE)) { scanned++; continue; } // minified/generated — skip
     let blame = null; // lazily blamed on first hit, then reused for this file
     const ensureBlame = () => (blame ??= blameAuthors(git, file));
-    for (const rule of rules) {
+    for (const rule of activeRules) {
       if (rule.pathInclude && !rule.pathInclude.test(file)) continue;
       if (rule.pathExclude && rule.pathExclude.test(file)) continue;
       for (let i = 0; i < lines.length; i++) {
-        if (rule.re.test(lines[i])) {
+        const line = lines[i];
+        const prevLine = i > 0 ? lines[i - 1] : '';
+        if (hasInlineSuppression(line, prevLine)) continue;
+        if (isSampleOrDocComment(line, file)) continue;
+        if (rule.re.test(line)) {
           const who = ensureBlame()[i] || { name: 'unknown', email: '' };
           byVector[rule.vector].push({
             id: rule.id, file, line: i + 1, severity: rule.severity,
-            snippet: clip(lines[i]), fix: rule.fix, review: !!rule.review,
+            snippet: clip(line), fix: rule.fix, review: !!rule.review,
             author: who.name, authorEmail: who.email, source: 'built-in',
           });
         }
@@ -150,6 +158,36 @@ export function scanSecurity(git, cwd, { rules = SECURITY_RULES, globs = SECURIT
     if (sg) {
       for (const f of sg.findings) (byVector[f.vector] ??= []).push(f);
       sastEngine = `semgrep ${sg.version}`;
+    }
+  }
+
+  // Post-process all vectors for exclusions, disabled rules, sample comments, and Firebase keys
+  for (const vec of Object.keys(byVector)) {
+    byVector[vec] = byVector[vec].filter((f) => {
+      if (pathExcluded(f.file)) return false;
+      if (disabledRules.includes(f.id)) return false;
+      if (isSampleOrDocComment(f.snippet, f.file)) return false;
+      return true;
+    });
+  }
+
+  if (byVector['Secrets']) {
+    for (const f of byVector['Secrets']) {
+      const isGcpKey = /AIza[0-9A-Za-z-_]{30,45}/.test(f.snippet) || (f.id && f.id.includes('gcp-api-key'));
+      if (isGcpKey) {
+        const isClientFile = /\.(ts|tsx|js|jsx|html|vue)$/i.test(f.file) || /environment/i.test(f.file);
+        let fileText = '';
+        try { fileText = readFileSync(join(cwd, f.file), 'utf8'); } catch {}
+        const isFirebase = /firebase|authDomain/i.test(fileText) || /firebase|authDomain/i.test(f.snippet);
+        if (isClientFile || isFirebase) {
+          f.severity = 'Low';
+          f.review = true;
+          if (!f.snippet.startsWith('[Firebase/Web Client Key]')) {
+            f.snippet = `[Firebase/Web Client Key] ${f.snippet}`;
+          }
+          f.fix = 'Firebase / client-side Google API key is a public project identifier. Ensure HTTP referrer / package restrictions and Firebase Security Rules are enforced in Google Cloud Console; rotating is not required unless abused.';
+        }
+      }
     }
   }
 

@@ -20,6 +20,9 @@ const JAVA_CODE = [
 ];
 const JAVA_SEC = [
   ...SECRET_RULES,
+  { id: 'java-weak-hash', vector: 'Secrets', severity: 'High', review: true,
+    re: /<password-encoder\s+[^>]*hash=["'](md5|sha|plaintext|none)["']|<password-encoder\s+[^>]*base64=["']true["']|\b(NoOpPasswordEncoder|Md5PasswordEncoder|ShaPasswordEncoder)\b|MessageDigest\.getInstance\s*\(\s*["'](MD5|SHA-1|SHA1)["']\s*\)/i,
+    fix: 'Migrate to modern salted hashing (e.g. BCryptPasswordEncoder, Argon2PasswordEncoder) instead of legacy unsalted MD5/SHA.' },
   { id: 'java-sqli',  vector: 'Injection/XSS', severity: 'High', review: true,
     re: /(createQuery|createNativeQuery|prepareStatement|executeQuery|executeUpdate)\s*\([^)]*\+/,
     fix: 'Use parameterized queries / bound parameters instead of string concatenation.' },
@@ -29,12 +32,9 @@ const JAVA_SEC = [
   { id: 'java-deser', vector: 'Injection/XSS', severity: 'High', review: true,
     re: /new\s+ObjectInputStream\s*\(/,
     fix: 'Untrusted Java deserialization is dangerous — avoid it, or use an allowlist / a safe format (JSON).' },
-  { id: 'java-upload', vector: 'LPDoS', severity: 'Medium', review: true,
+  { id: 'java-upload', vector: 'LPDoS', severity: 'Low', review: true,
     re: /\bMultipartFile\b/,
     fix: 'Enforce a max upload size (e.g. spring.servlet.multipart.max-file-size) and validate before processing.' },
-  { id: 'java-mutation', vector: 'Replay', severity: 'Low', review: true,
-    re: /@(PostMapping|PutMapping|DeleteMapping|PatchMapping)\b/,
-    fix: 'Sensitive state-changing endpoints should accept an idempotency key / nonce and reject replays.' },
 ];
 
 // ── Flutter / Dart ────────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ const DART_SEC = [
     re: /Clipboard\.(setData|getData)\s*\(/,
     fix: 'Treat pasted content as untrusted; strip zero-width/control chars before rendering.' },
   { id: 'dart-mutation', vector: 'Replay', severity: 'Low', review: true,
-    re: /\b(http|dio|client|_client)\.(post|put|patch|delete)\s*\(/i, pathInclude: /(service|api|repo|checkout|payment|auth)/i,
+    re: /\b(http|dio|client|_client)\.(post|put|patch|delete)\s*\(/i, pathInclude: /(checkout|payment|charge|billing|transfer|payout|refund)/i,
     fix: 'Add an idempotency key / nonce to sensitive mutations and disable the trigger while in flight.' },
 ];
 
