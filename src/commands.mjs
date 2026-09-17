@@ -13,6 +13,7 @@ import { scanSecurity, securityMarkdown } from './security.mjs';
 import { resolvePack } from './languages.mjs';
 import { ensureTool } from './tools.mjs';
 import { renderReport } from './render.mjs';
+import { loadIgnoreFile } from './ignore.mjs';
 
 const CONFIG_NAME = 'git-team-report.config.json';
 const STATE_DIR = '.git-team-report';
@@ -46,6 +47,9 @@ export function init({ cwd, force }) {
       callout: 'Git numbers are pulled live by <code>git-team-report</code>; grades &amp; findings come from the config file.',
     },
     period: { start: firstCommitDate(git) },
+    excludePaths: [],
+    disabledRules: [],
+    hideGrades: false,
     authors: discovered.map((a) => ({
       email: a.email,
       name: a.name,
@@ -65,17 +69,24 @@ export function init({ cwd, force }) {
   console.log(`  See the shipped config/config.example.json for a fully filled-in example.\n`);
 }
 
-export async function security({ cwd, outPath, gitleaks = true, semgrep = false, lang, installTools = false, prompt = true }) {
+export async function security({ cwd, outPath, gitleaks = true, semgrep = false, lang, installTools = false, prompt = true, exclude = [], disableRule = [] }) {
   const git = makeGit(cwd);
   ensureRepo(git);
   const repoName = repoNameOf(git, cwd);
   const date = dataThroughDate(git);
   const { pack } = resolvePack(git, lang);
   console.log(`  Language pack: ${pack.label}`);
+
+  const cfgFile = join(cwd, CONFIG_NAME);
+  const cfg = existsSync(cfgFile) ? readJson(cfgFile) : {};
+  const fileIgnores = loadIgnoreFile(cwd);
+  const excludePaths = [...(cfg.excludePaths || []), ...fileIgnores, ...(exclude || [])];
+  const disabledRules = [...(cfg.disabledRules || []), ...(disableRule || [])];
+
   const useGitleaks = gitleaks ? await ensureTool('gitleaks', { autoYes: installTools, prompt }) : false;
   const useSemgrep = semgrep ? await ensureTool('semgrep', { autoYes: installTools, prompt }) : false;
   console.log(`  Scanning for security signals…${useSemgrep ? ' (running Semgrep — may take a while)' : ''}`);
-  const result = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks: useGitleaks, semgrep: useSemgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+  const result = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks: useGitleaks, semgrep: useSemgrep, disabledRules, excludePaths, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
   process.stdout.write('\r' + ' '.repeat(30) + '\r');
   const md = securityMarkdown(result, { repoName, date });
   const out = outPath ? resolve(outPath) : join(cwd, 'security-scan.md');
@@ -101,6 +112,9 @@ function synthConfig(git) {
       callout: 'Zero-config report — authors, git stats, and the code-issue matrix are all derived live from the repo. Add a <code>git-team-report.config.json</code> to set grades, findings, and ship-blockers by hand.',
     },
     period: { start: firstCommitDate(git) },
+    excludePaths: [],
+    disabledRules: [],
+    hideGrades: false,
     authors: discoverAuthors(git).map((a) => ({
       email: a.email, name: a.name, short: a.name.split(' ')[0], domain: '', gitGrade: '', codeGrade: '',
     })),
@@ -108,7 +122,7 @@ function synthConfig(git) {
   };
 }
 
-export async function build({ cwd, configPath, outPath, full, scan = true, security: doSecurity = true, gitleaks = true, semgrep = false, lang, installTools = false, prompt = true }) {
+export async function build({ cwd, configPath, outPath, full, scan = true, security: doSecurity = true, gitleaks = true, semgrep = false, lang, installTools = false, prompt = true, noGrades = false, exclude = [], disableRule = [] }) {
   const git = makeGit(cwd);
   ensureRepo(git);
 
@@ -118,6 +132,11 @@ export async function build({ cwd, configPath, outPath, full, scan = true, secur
   if (!hasConfig) console.log(`\n  No config found — running zero-config (authors + issue matrix auto-derived).`);
   const repoName = repoNameOf(git, cwd);
   const throughDate = dataThroughDate(git);
+
+  const fileIgnores = loadIgnoreFile(cwd);
+  const excludePaths = [...(config.excludePaths || []), ...fileIgnores, ...(exclude || [])];
+  const disabledRules = [...(config.disabledRules || []), ...(disableRule || [])];
+  if (noGrades) config.hideGrades = true;
 
   const { pack } = resolvePack(git, lang || config.language);
   console.log(`  Language pack: ${pack.label}`);
@@ -135,15 +154,15 @@ export async function build({ cwd, configPath, outPath, full, scan = true, secur
     return true;
   });
 
-  // collect git metrics
+  // collect git metrics with exclude patterns applied
   const metrics = new Map();
-  for (const a of config.authors) metrics.set(a.email, metricsFor(git, a.email));
+  for (const a of config.authors) metrics.set(a.email, metricsFor(git, a.email, { excludePatterns: excludePaths }));
 
   // auto code-quality scan (blame-attributed) unless disabled
   let scanResult = null;
   if (scan) {
     console.log(`  Scanning source for code smells (git blame attribution)…`);
-    scanResult = scanCode(git, cwd, { rules: pack.codeRules, globs: pack.codeGlobs, onProgress: (n, t) => process.stdout.write(`\r    blamed ${n}/${t} files`) });
+    scanResult = scanCode(git, cwd, { rules: pack.codeRules, globs: pack.codeGlobs, disabledRules, excludePaths, onProgress: (n, t) => process.stdout.write(`\r    blamed ${n}/${t} files`) });
     process.stdout.write('\r' + ' '.repeat(40) + '\r');
   }
 
@@ -153,7 +172,7 @@ export async function build({ cwd, configPath, outPath, full, scan = true, secur
   for (const a of config.authors) {
     autoGrade[a.email] = { git: !a.gitGrade, code: !a.codeGrade && !!scanResult };
     if (!a.gitGrade) a.gitGrade = suggestGitGrade(metrics.get(a.email));
-    if (!a.codeGrade && scanResult) a.codeGrade = codeGradeFrom(scanResult.byEmail[a.email]).grade;
+    if (!a.codeGrade && scanResult) a.codeGrade = codeGradeFrom(scanResult.byEmail[a.email], metrics.get(a.email).added).grade;
   }
   if (scanResult && (!config.issueMatrix || !config.issueMatrix.rows?.length)) {
     config.issueMatrix = matrixFromScan(scanResult, cardAuthors, pack.label);
@@ -165,7 +184,7 @@ export async function build({ cwd, configPath, outPath, full, scan = true, secur
     const useGitleaks = gitleaks ? await ensureTool('gitleaks', { autoYes: installTools, prompt }) : false;
     const useSemgrep = semgrep ? await ensureTool('semgrep', { autoYes: installTools, prompt }) : false;
     console.log(`  Scanning for security signals…${useSemgrep ? ' (running Semgrep — may take a while)' : ''}`);
-    securityResult = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks: useGitleaks, semgrep: useSemgrep, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
+    securityResult = scanSecurity(git, cwd, { rules: pack.secRules, globs: pack.secGlobs, gitleaks: useGitleaks, semgrep: useSemgrep, disabledRules, excludePaths, onProgress: (n, t) => process.stdout.write(`\r    ${n}/${t} files`) });
     process.stdout.write('\r' + ' '.repeat(30) + '\r');
   }
 

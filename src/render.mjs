@@ -265,11 +265,13 @@ export function renderReport(config, metrics, opts) {
     return `<span class="${cls}"${style}>${txt}</span>`;
   };
 
+  const gradesHtml = (a) => config.hideGrades ? '' : `
+          <div class="grades"><span class="pill ${gradeCls(a.gitGrade)}"><span class="k">Git</span>${a.gitGrade || '—'}</span><span class="pill ${gradeCls(a.codeGrade)}"><span class="k">Code</span>${a.codeGrade || '—'}</span></div>`;
+
   const cardAuthors = authors.filter((a) => !a.hideFromCards && a.m.commits > 0);
   const cards = cardAuthors.map((a) => `
       <div class="mcard"${a.highlight ? ' style="border-color:color-mix(in srgb,var(--a) 40%,var(--border))"' : ''}>
-        <div class="top"><div><div class="name">${esc(a.name)}</div><div class="email">${esc(a.short || a.email)}</div></div>
-          <div class="grades"><span class="pill ${gradeCls(a.gitGrade)}"><span class="k">Git</span>${a.gitGrade || '—'}</span><span class="pill ${gradeCls(a.codeGrade)}"><span class="k">Code</span>${a.codeGrade || '—'}</span></div></div>
+        <div class="top"><div><div class="name">${esc(a.name)}</div><div class="email">${esc(a.short || a.email)}</div></div>${gradesHtml(a)}</div>
         <div class="statline"><span><b>${a.m.commits}</b> commits</span><span><b>+${fmtK(a.m.added)}</b>/<b>−${fmtK(a.m.deleted)}</b></span><span><b>${a.m.convPct}%</b> conv</span><span><b>${a.m.mi}</b> MI</span>${badge(a)}</div>
         ${a.domain ? `<div class="domain">${a.domain}</div>` : ''}
       </div>`).join('');
@@ -325,8 +327,7 @@ ${memberAuthors.map((a) => {
     const head = f.headline ? ` <span class="up">${esc(f.headline)}</span>` : '';
     return `
     <div class="member" id="m-${slug(a.name)}"${hl}>
-      <div class="mhead"><div><div class="name">${esc(a.name)}${head}</div><div class="line">${line}</div></div>
-        <div class="grades"><span class="pill ${gradeCls(a.gitGrade)}"><span class="k">Git</span>${a.gitGrade || '—'}</span><span class="pill ${gradeCls(a.codeGrade)}"><span class="k">Code</span>${a.codeGrade || '—'}</span></div></div>
+      <div class="mhead"><div><div class="name">${esc(a.name)}${head}</div><div class="line">${line}</div></div>${gradesHtml(a)}</div>
 ${secs}${note}
     </div>`;
   }).join('\n')}
@@ -382,7 +383,7 @@ ${STYLE}
 
   <section id="overview">
     <h3>Team overview</h3>
-    <p class="sub">Grades, pull stats, and ticket hygiene — ranked by commit volume across all branches.</p>
+    <p class="sub">${config.hideGrades ? 'Pull stats and ticket hygiene' : 'Grades, pull stats, and ticket hygiene'} — ranked by commit volume across all branches.</p>
     <div class="cards">${cards}
     </div>
     <div class="panel" style="margin-top:20px">

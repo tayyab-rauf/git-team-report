@@ -4,6 +4,7 @@
  * requires re-deriving anything by hand.
  */
 import { execSync } from 'node:child_process';
+import { createPathMatcher } from './ignore.mjs';
 
 const CONV_RE = /^(feat|fix|refactor|chore|docs|style|test|perf|build|ci)(\(.+\))?:/;
 
@@ -48,17 +49,22 @@ export function discoverAuthors(git) {
   return Array.from(map.values()).sort((a, b) => b.commits - a.commits);
 }
 
-/** All git metrics for one author (matched by email/name substring). */
-export function metricsFor(git, email) {
+/**
+ * Live numbers for one author across git history: commits, conventional %,
+ * ticket links, lines added/deleted, monthly cadence, last active date.
+ */
+export function metricsFor(git, email, { excludePatterns = [] } = {}) {
   const esc = String(email).replace(/"/g, '');
   const commits = parseInt(git(`rev-list --all --count --author="${esc}"`) || '0', 10);
   const subjects = git(`log --all --author="${esc}" --format=%s`).split('\n').filter(Boolean);
   const conv = subjects.filter((s) => CONV_RE.test(s)).length;
   const mi = subjects.filter((s) => /([A-Za-z]{2,}-\d+|#\d+)/.test(s)).length;
 
+  const pathExcluded = createPathMatcher(excludePatterns);
   let added = 0, deleted = 0;
   for (const line of git(`log --all --author="${esc}" --pretty=tformat: --numstat`).split('\n')) {
-    const [a, d] = line.split('\t');
+    const [a, d, p] = line.split('\t');
+    if (p && pathExcluded(p)) continue;
     if (a && a !== '-') added += parseInt(a, 10) || 0;
     if (d && d !== '-') deleted += parseInt(d, 10) || 0;
   }
